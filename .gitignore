@@ -1,0 +1,12 @@
+node_modules/
+.DS_Store
+.env
+*.log
+
+# Runtime data & personal library cache
+data/*
+!data/.gitkeep
+
+# Agents & skills
+.agents/
+skills-lock.json

@@ -1,0 +1,26 @@
+{
+  "name": "orange-tv",
+  "version": "1.0.0",
+  "description": "Ultra-lightweight local Orange TV streaming server for macOS and Smart TVs",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "start:caffeinate": "caffeinate -d -s -i node server/server.js"
+  },
+  "keywords": [
+    "orange-tv",
+    "streaming",
+    "smart-tv",
+    "local-media",
+    "h264",
+    "mp4"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

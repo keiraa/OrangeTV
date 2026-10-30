@@ -1,0 +1,1786 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Orange TV — Media Center</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Orange TV SF Pro typography & smooth rendering */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background-color: #050507;
+      color: #f5f5f7;
+      overflow-x: hidden;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Orange Glass System */
+    .glass-nav {
+      background: rgba(18, 16, 20, 0.78);
+      backdrop-filter: blur(28px) saturate(200%);
+      -webkit-backdrop-filter: blur(28px) saturate(200%);
+      border: 1px solid rgba(255, 140, 0, 0.18);
+    }
+    
+    .glass-card {
+      background: rgba(24, 22, 28, 0.62);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.75);
+    }
+
+    .glass-btn {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .glass-btn:hover {
+      background: rgba(255, 140, 0, 0.2);
+      border-color: rgba(255, 140, 0, 0.35);
+      transform: scale(1.02);
+    }
+    .glass-btn:active {
+      transform: scale(0.97);
+    }
+
+    .orange-primary-btn {
+      background: linear-gradient(135deg, #ff7a00, #ff9500);
+      color: #ffffff;
+      font-weight: 600;
+      transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s ease, filter 0.15s ease;
+      box-shadow: 0 4px 18px rgba(255, 122, 0, 0.4);
+    }
+    .orange-primary-btn:hover {
+      filter: brightness(1.1);
+      transform: scale(1.03);
+      box-shadow: 0 6px 24px rgba(255, 149, 0, 0.55);
+    }
+    .orange-primary-btn:active {
+      transform: scale(0.97);
+    }
+
+    /* 3D Orange TV Card Parallax & Glare */
+    .tv-card-wrapper {
+      perspective: 1000px;
+      transform-style: preserve-3d;
+    }
+    .tv-card {
+      transform-style: preserve-3d;
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease, border-color 0.35s ease;
+      will-change: transform;
+    }
+    .tv-card:hover {
+      box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.9), 0 0 24px rgba(255, 140, 0, 0.22);
+      border-color: rgba(255, 140, 0, 0.3);
+    }
+    .tv-card-glare {
+      pointer-events: none;
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 0%, rgba(255, 180, 50, 0.35), transparent 70%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      border-radius: inherit;
+    }
+    .tv-card:hover .tv-card-glare {
+      opacity: 1;
+    }
+
+    /* TV D-Pad navigation focus */
+    body.tv-mode *:focus {
+      outline: 3px solid #ff8c00 !important;
+      outline-offset: 4px;
+      transform: scale(1.04);
+      z-index: 40;
+    }
+
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Orange Progress Bar */
+    .orange-progress {
+      height: 3px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+    .orange-progress-fill {
+      background: linear-gradient(90deg, #ff7a00, #ffb300);
+      height: 100%;
+      border-radius: 9999px;
+      transition: width 0.2s ease;
+    }
+  </style>
+</head>
+<body class="bg-[#050507] text-[#f5f5f7] min-h-screen relative antialiased selection:bg-orange-500 selection:text-white">
+
+  <!-- Ambient Dynamic Lighting Glow -->
+  <div id="ambientGlow" class="fixed top-0 left-0 w-full h-[650px] pointer-events-none opacity-40 blur-[140px] -z-10 bg-gradient-to-b from-orange-600/35 via-amber-700/20 to-transparent transition-all duration-1000"></div>
+
+  <!-- Top Orange Floating Pill Nav -->
+  <header class="fixed top-6 left-0 right-0 z-40 flex justify-center px-4">
+    <div class="glass-nav rounded-full px-4 py-2 flex items-center gap-1 sm:gap-3 shadow-2xl">
+      <!-- Orange TV Logo Mark (Citrus Orange Icon) -->
+      <div class="flex items-center gap-2 px-3 py-1 cursor-pointer group" onclick="switchTab('all')" tabindex="0" title="Orange TV Home">
+        <svg class="w-6 h-6 transform group-hover:rotate-12 transition-transform duration-300" viewBox="0 0 32 32" fill="none">
+          <circle cx="16" cy="18" r="12" fill="url(#orangeGrad)"/>
+          <path d="M16 6 C16 6, 20 8, 22 5 C22 5, 20 10, 16 9 Z" fill="#4ade80"/>
+          <path d="M16 6 L16 10" stroke="#166534" stroke-width="1.8" stroke-linecap="round"/>
+          <circle cx="16" cy="18" r="9.5" stroke="#ffffff" stroke-opacity="0.3" stroke-width="1"/>
+          <!-- Citrus segments subtle lines -->
+          <line x1="16" y1="18" x2="16" y2="9.5" stroke="#ffffff" stroke-opacity="0.3" stroke-width="0.8"/>
+          <line x1="16" y1="18" x2="23.5" y2="14" stroke="#ffffff" stroke-opacity="0.3" stroke-width="0.8"/>
+          <line x1="16" y1="18" x2="22" y2="23" stroke="#ffffff" stroke-opacity="0.3" stroke-width="0.8"/>
+          <line x1="16" y1="18" x2="16" y2="26.5" stroke="#ffffff" stroke-opacity="0.3" stroke-width="0.8"/>
+          <line x1="16" y1="18" x2="10" y2="23" stroke="#ffffff" stroke-opacity="0.3" stroke-width="0.8"/>
+          <line x1="16" y1="18" x2="8.5" y2="14" stroke="#ffffff" stroke-opacity="0.3" stroke-width="0.8"/>
+          <defs>
+            <linearGradient id="orangeGrad" x1="4" y1="6" x2="28" y2="30" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#FF9500"/>
+              <stop offset="1" stop-color="#FF5E00"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <span class="text-sm font-bold tracking-tight text-white">Orange <span class="text-orange-400">TV</span></span>
+      </div>
+
+      <div class="h-4 w-[1px] bg-white/20"></div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center gap-1">
+        <button id="nav-all" onclick="switchTab('all')" tabindex="0" class="nav-tab active px-3.5 py-1.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-orange-500 to-amber-500 shadow-md shadow-orange-500/25 transition-all">Watch Now</button>
+        <button id="nav-movies" onclick="switchTab('movies')" tabindex="0" class="nav-tab px-3.5 py-1.5 rounded-full text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition-all">Movies</button>
+        <button id="nav-tv" onclick="switchTab('tv')" tabindex="0" class="nav-tab px-3.5 py-1.5 rounded-full text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition-all">TV Shows</button>
+        <button id="nav-series" onclick="switchTab('series')" tabindex="0" class="nav-tab px-3.5 py-1.5 rounded-full text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition-all">Movie Series</button>
+      </nav>
+
+      <div class="h-4 w-[1px] bg-white/20"></div>
+
+      <!-- Search & Controls -->
+      <div class="flex items-center gap-2">
+        <div class="relative flex items-center">
+          <input type="text" id="searchInput" placeholder="Search..." oninput="handleSearch(this.value)" tabindex="0" class="bg-white/10 hover:bg-white/15 focus:bg-white/20 text-white placeholder-white/40 text-xs rounded-full pl-8 pr-3 py-1.5 outline-none transition-all w-24 sm:w-36 focus:w-48 border border-transparent focus:border-orange-500/50">
+          <svg class="w-3.5 h-3.5 text-white/50 absolute left-2.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </div>
+
+        <!-- Rescan Library Button -->
+        <button onclick="rescanServer()" id="rescanBtn" tabindex="0" title="Rescan Library" class="p-1.5 rounded-full text-white/70 hover:text-white hover:bg-white/15 transition-all">
+          <svg id="refreshIcon" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6"></path>
+            <path d="M1 20v-6h6"></path>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+        </button>
+
+        <!-- Settings Button -->
+        <button onclick="openSettingsModal()" tabindex="0" title="Media Folders" class="p-1.5 rounded-full text-white/70 hover:text-white hover:bg-white/15 transition-all">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Cinematic Stage -->
+  <section id="heroSection" class="relative w-full h-[82vh] min-h-[580px] max-h-[860px] flex items-end pb-16 px-6 md:px-16 overflow-hidden group">
+    <div id="heroBackdrop" class="absolute inset-0 bg-cover bg-top transition-all duration-700 ease-out scale-100" style="background-position: center top; background-repeat: no-repeat; background-size: cover;">
+      <div class="absolute inset-0 bg-gradient-to-t from-[#050507] via-[#050507]/40 to-transparent"></div>
+      <div class="absolute inset-0 bg-gradient-to-r from-[#050507]/95 via-[#050507]/40 to-transparent w-4/5"></div>
+    </div>
+
+    <!-- Hero Carousel Previous & Next Navigation Buttons -->
+    <button onclick="cycleHero(-1)" class="absolute left-3 md:left-8 top-1/2 -translate-y-1/2 z-20 glass-btn p-3 md:p-3.5 rounded-full text-white/80 hover:text-white hover:bg-orange-500/25 hover:border-orange-500/40 shadow-2xl transition-all active:scale-90" title="Previous Featured Movie">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>
+    <button onclick="cycleHero(1)" class="absolute right-3 md:right-8 top-1/2 -translate-y-1/2 z-20 glass-btn p-3 md:p-3.5 rounded-full text-white/80 hover:text-white hover:bg-orange-500/25 hover:border-orange-500/40 shadow-2xl transition-all active:scale-90" title="Next Featured Movie">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </button>
+
+    <!-- Hero Content Info -->
+    <div class="relative z-10 max-w-2xl space-y-4">
+      <div class="flex items-center gap-2">
+        <span class="px-2.5 py-0.5 rounded text-[11px] font-bold tracking-widest uppercase bg-orange-500/20 text-orange-400 border border-orange-500/30 backdrop-blur-md">Orange Original</span>
+        <span id="heroFormatBadge" class="text-xs text-white/70 font-semibold tracking-wide">4K ULTRA HD</span>
+      </div>
+
+      <h1 id="heroTitle" class="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white drop-shadow-lg leading-tight">
+        Orange TV
+      </h1>
+
+      <div class="flex items-center gap-3 text-xs text-white/80 font-medium">
+        <span id="heroRating" class="flex items-center gap-1 text-amber-400 font-semibold">★ 8.8</span>
+        <span>•</span>
+        <span id="heroYear">2026</span>
+        <span>•</span>
+        <span id="heroGenre" class="px-2 py-0.5 rounded bg-white/10 text-[11px]">Cinema</span>
+        <span>•</span>
+        <span id="heroViews" class="text-orange-400 font-medium flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          <span id="heroViewsCount">0 views</span>
+        </span>
+      </div>
+
+      <p id="heroOverview" class="text-sm md:text-base text-white/80 line-clamp-3 leading-relaxed drop-shadow">
+        Stream your personal collection seamlessly with Orange TV.
+      </p>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-3 pt-2">
+        <button id="heroPlayBtn" onclick="playCurrentHero()" tabindex="0" class="orange-primary-btn px-6 py-2.5 rounded-full flex items-center gap-2 text-sm">
+          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          <span id="heroPlayLabel">Play</span>
+        </button>
+
+        <button id="heroTrailerBtn" onclick="playCurrentHeroTrailer()" tabindex="0" class="glass-btn px-4 py-2.5 rounded-full flex items-center gap-2 text-sm text-white font-medium hover:text-orange-400">
+          <svg class="w-4 h-4 fill-current text-orange-400" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          <span>Trailer</span>
+        </button>
+
+        <button id="heroDetailsBtn" onclick="openHeroDetails()" tabindex="0" class="glass-btn px-5 py-2.5 rounded-full flex items-center gap-2 text-sm text-white font-medium">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          Details
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Carousel Container -->
+  <main class="relative z-20 px-6 md:px-16 -mt-8 space-y-12 pb-24">
+
+    <!-- Row: Continue Watching -->
+    <section id="rowUpNext" class="space-y-3" style="display: none;">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+          Continue Watching
+          <span class="text-xs font-normal text-white/50 tracking-normal">Pick up where you left off</span>
+        </h2>
+        <div class="flex items-center gap-1">
+          <button onclick="scrollRow('upNextScroll', -1)" tabindex="0" class="glass-btn p-1.5 rounded-full text-white/70 hover:text-white">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          </button>
+          <button onclick="scrollRow('upNextScroll', 1)" tabindex="0" class="glass-btn p-1.5 rounded-full text-white/70 hover:text-white">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+        </div>
+      </div>
+      <div id="upNextScroll" class="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth py-3"></div>
+    </section>
+
+    <!-- Row: Feature Movies -->
+    <section id="rowMovies" class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+          Movie's
+          <span class="text-xs font-normal text-white/50">Full Length Cinema</span>
+        </h2>
+        <div class="flex items-center gap-1">
+          <button onclick="scrollRow('moviesScroll', -1)" tabindex="0" class="glass-btn p-1.5 rounded-full text-white/70 hover:text-white">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          </button>
+          <button onclick="scrollRow('moviesScroll', 1)" tabindex="0" class="glass-btn p-1.5 rounded-full text-white/70 hover:text-white">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+        </div>
+      </div>
+      <div id="moviesScroll" class="flex gap-6 sm:gap-7 overflow-x-auto no-scrollbar scroll-smooth py-4 px-1"></div>
+    </section>
+
+    <!-- Row: TV Shows -->
+    <section id="rowTv" class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+          Tv Shows
+          <span class="text-xs font-normal text-white/50">Complete Seasons & Episodes</span>
+        </h2>
+        <div class="flex items-center gap-1">
+          <button onclick="scrollRow('tvScroll', -1)" tabindex="0" class="glass-btn p-1.5 rounded-full text-white/70 hover:text-white">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          </button>
+          <button onclick="scrollRow('tvScroll', 1)" tabindex="0" class="glass-btn p-1.5 rounded-full text-white/70 hover:text-white">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+        </div>
+      </div>
+      <div id="tvScroll" class="flex gap-6 sm:gap-7 overflow-x-auto no-scrollbar scroll-smooth py-4 px-1"></div>
+    </section>
+
+    <!-- Section: Movie Series (with Separate Headings per Franchise) -->
+    <section id="sectionMovieSeries" class="space-y-8">
+      <div class="border-b border-orange-500/20 pb-3">
+        <h2 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+          Movie Series
+          <span class="text-xs font-normal text-orange-400/80 bg-orange-500/10 px-2.5 py-0.5 rounded-full border border-orange-500/20">Franchises & Sagas</span>
+        </h2>
+      </div>
+
+      <!-- Dynamically Rendered Series Blocks -->
+      <div id="seriesContainer" class="space-y-10"></div>
+    </section>
+  </main>
+
+  <!-- Floating 3x Pop-Out Card Preview -->
+  <div id="cardPopoutPreview" class="fixed z-40 opacity-0 pointer-events-none transition-all duration-300 ease-out transform scale-90 select-none cursor-grab active:cursor-grabbing" style="will-change: transform, opacity, top, left;">
+    <div class="relative w-[340px] sm:w-[440px] rounded-2xl overflow-hidden glass-card border border-orange-500/40 shadow-[0_25px_80px_rgba(0,0,0,0.95),0_0_35px_rgba(255,140,0,0.35)] bg-[#121016]">
+      <!-- Video Preview / Artwork Window -->
+      <div class="relative w-full aspect-video overflow-hidden bg-black">
+        <img id="popoutPoster" src="" class="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+        <video id="popoutVideo" class="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-300 pointer-events-none" loop muted playsinline></video>
+        <div class="absolute inset-0 bg-gradient-to-t from-[#121016] via-transparent to-black/40 pointer-events-none"></div>
+
+        <!-- Left / Right Carousel Navigation Arrow Buttons on 3x Pop-out -->
+        <button id="popoutPrevBtn" onclick="navigatePopout(-1, event)" class="absolute left-2.5 top-1/2 -translate-y-1/2 z-30 glass-btn p-2 rounded-full text-white/90 hover:text-white hover:bg-orange-500/40 border border-white/20 shadow-xl transition-all active:scale-90" title="Previous Movie (Drag Left / Arrow Left)">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <button id="popoutNextBtn" onclick="navigatePopout(1, event)" class="absolute right-2.5 top-1/2 -translate-y-1/2 z-30 glass-btn p-2 rounded-full text-white/90 hover:text-white hover:bg-orange-500/40 border border-white/20 shadow-xl transition-all active:scale-90" title="Next Movie (Drag Right / Arrow Right)">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+
+        <!-- Live Preview Badge & Mute Toggle -->
+        <div class="absolute top-3 left-3 flex items-center gap-2">
+          <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-orange-500 text-white shadow-md flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+            3x Pop-Out (Auto 80% in 5s)
+          </span>
+        </div>
+        <button onclick="togglePopoutMute(event)" class="absolute top-3 right-3 glass-btn p-1.5 rounded-full text-white text-xs hover:border-orange-500/50">
+          <span id="popoutMuteIcon">🔇</span>
+        </button>
+      </div>
+
+      <!-- Content & Action Buttons -->
+      <div class="p-4 space-y-3">
+        <div>
+          <h4 id="popoutTitle" class="text-base sm:text-lg font-bold text-white truncate drop-shadow">Title</h4>
+          <div class="flex items-center gap-2 text-[11px] text-white/70 mt-1">
+            <span id="popoutRating" class="text-amber-400 font-bold">★ 8.2</span>
+            <span>•</span>
+            <span id="popoutYear">2026</span>
+            <span>•</span>
+            <span id="popoutViews" class="text-orange-400 font-medium">0 views</span>
+            <span>•</span>
+            <span id="popoutGenre" class="text-white/50 truncate">Cinema</span>
+          </div>
+        </div>
+
+        <p id="popoutOverview" class="text-xs text-white/75 line-clamp-2 leading-relaxed"></p>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2 pt-1">
+          <button id="popoutPlayBtn" class="orange-primary-btn flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md">
+            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            Play Movie
+          </button>
+          <button id="popoutTheaterBtn" class="glass-btn px-3 py-2 rounded-xl text-xs font-medium text-white/90 hover:text-orange-300 flex items-center gap-1" title="Expand to 80% Screen Space">
+            <svg class="w-3.5 h-3.5 fill-current text-orange-400" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            80% Theater
+          </button>
+          <button id="popoutDetailsBtn" class="glass-btn p-2 rounded-xl text-white/80 hover:text-white" title="Full Details">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Immersive 80% Screen Space Trailer Theater Modal -->
+  <div id="trailerTheater" onclick="if (event.target === this) closeTrailerTheater()" class="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-black/85 backdrop-blur-2xl opacity-0 pointer-events-none transition-opacity duration-300">
+    <div id="theaterBox" class="relative w-[85vw] max-w-6xl h-[80vh] rounded-3xl overflow-hidden glass-card border border-orange-500/30 shadow-[0_25px_80px_rgba(255,120,0,0.3)] flex flex-col justify-between transform scale-95 transition-transform duration-300 bg-[#0d0c10]">
+      
+      <!-- Top Title Bar with Timeline Line Directly Below Header -->
+      <div class="relative z-20 p-5 md:p-6 bg-gradient-to-b from-black/95 via-black/80 to-transparent space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="px-3 py-1 rounded-full text-[11px] font-bold bg-orange-500 text-white tracking-wider uppercase flex items-center gap-1.5 shadow-lg shadow-orange-500/30">
+              <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+              Trailer Theater (80% Screen)
+            </span>
+            <h3 id="theaterTitle" class="text-xl md:text-2xl font-bold text-white drop-shadow-md truncate max-w-md"></h3>
+            <div class="hidden sm:flex items-center gap-2 text-xs">
+              <span id="theaterYear" class="px-2 py-0.5 rounded-full bg-white/20 text-white font-medium"></span>
+              <span id="theaterRating" class="px-2 py-0.5 rounded-full bg-amber-500/30 text-amber-300 font-bold border border-amber-500/30"></span>
+              <span id="theaterViews" class="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 font-medium border border-orange-500/30"></span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="theaterMuteBtn" onclick="toggleTheaterMute()" class="glass-btn px-4 py-1.5 rounded-full text-xs font-medium text-white flex items-center gap-2 hover:border-orange-500/40">
+              <span id="theaterMuteIcon">🔊</span>
+              <span id="theaterMuteText">Mute</span>
+            </button>
+            <button onclick="closeTrailerTheater()" class="glass-btn p-2 rounded-full text-white/80 hover:text-white hover:bg-white/20" title="Close (ESC)">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- The Progress Timeline Line: Moved to TOP right below title and movie window -->
+        <div class="flex items-center gap-3 pt-1">
+          <div class="flex-1 orange-progress h-1.5 cursor-pointer rounded-full overflow-hidden bg-white/20 hover:h-2 transition-all" onclick="seekTheaterVideo(event)">
+            <div id="theaterProgressBar" class="orange-progress-fill h-full transition-all duration-100" style="width: 0%;"></div>
+          </div>
+          <span id="theaterTimeDisplay" class="text-[11px] font-mono text-white/70">0:00 / 0:00</span>
+        </div>
+      </div>
+
+      <!-- Center Movie Video Window -->
+      <div class="absolute inset-0 w-full h-full z-10 pointer-events-none">
+        <video id="theaterVideo" class="w-full h-full object-cover" playsinline></video>
+        <div class="absolute inset-0 bg-gradient-to-t from-black/95 via-transparent to-black/60 pointer-events-none"></div>
+      </div>
+
+      <!-- Bottom Information & Action Buttons (Completely separate from timeline line) -->
+      <div class="relative z-20 p-6 md:p-8 space-y-3 max-w-3xl">
+        <div class="text-xs text-white/60 font-medium flex items-center gap-2">
+          <span id="theaterGenres"></span>
+        </div>
+        <p id="theaterOverview" class="text-xs sm:text-sm text-white/85 line-clamp-2 md:line-clamp-3 leading-relaxed drop-shadow"></p>
+        <div class="flex items-center gap-3 pt-2">
+          <button id="theaterPlayBtn" onclick="startMovieFromTheater()" class="orange-primary-btn px-6 py-2.5 rounded-full text-xs sm:text-sm font-semibold flex items-center gap-2">
+            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            Watch Full Movie
+          </button>
+          <button onclick="closeTrailerTheater()" class="glass-btn px-5 py-2.5 rounded-full text-xs sm:text-sm font-medium text-white/90">
+            Back to Browse (ESC)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Look Modal -->
+  <div id="detailModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-2xl opacity-0 pointer-events-none transition-all duration-300">
+    <div id="modalBox" class="glass-card max-w-3xl w-full rounded-2xl overflow-hidden shadow-2xl border border-white/15 transform scale-95 transition-transform duration-300">
+      
+      <!-- Modal Header Banner -->
+      <div class="relative h-64 sm:h-72 w-full overflow-hidden">
+        <div id="modalBackdrop" class="absolute inset-0 bg-cover bg-center"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-[#16141a] via-[#16141a]/40 to-transparent"></div>
+        
+        <button onclick="closeDetails()" tabindex="0" class="absolute top-4 right-4 glass-btn p-2 rounded-full text-white hover:text-white">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+
+        <div class="absolute bottom-4 left-6 right-6">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span id="modalTypeBadge" class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-orange-500/30 text-orange-300 border border-orange-500/30 backdrop-blur-md">MOVIE</span>
+            <span id="modalRating" class="text-xs font-semibold text-amber-400">★ 8.8</span>
+            <span class="text-xs text-white/50">•</span>
+            <span id="modalViewsCount" class="text-xs text-orange-400 font-medium">0 Views</span>
+          </div>
+          <h3 id="modalTitle" class="text-2xl sm:text-3xl font-bold tracking-tight text-white drop-shadow">Title</h3>
+        </div>
+      </div>
+
+      <!-- Modal Body Content -->
+      <div class="p-6 space-y-5 bg-[#16141a]/95">
+        <div class="flex items-center gap-3">
+          <button id="modalPlayBtn" onclick="playModalItem()" tabindex="0" class="orange-primary-btn px-6 py-2 rounded-full text-sm flex items-center gap-2">
+            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            <span id="modalPlayText">Play</span>
+          </button>
+
+          <button id="modalTrailerBtn" onclick="playModalTrailer()" tabindex="0" class="glass-btn px-4 py-2 rounded-full text-xs font-semibold text-white flex items-center gap-1.5 hover:text-orange-400">
+            <svg class="w-3.5 h-3.5 fill-current text-orange-400" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            <span>Watch Trailer</span>
+          </button>
+        </div>
+
+        <p id="modalOverview" class="text-sm text-white/70 leading-relaxed">Overview text...</p>
+
+        <!-- Episode list if TV show -->
+        <div id="modalEpisodesSection" class="hidden space-y-3 pt-2 border-t border-white/10">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-semibold text-white">Episodes</h4>
+            <span id="modalSeasonLabel" class="text-xs text-white/50">Season 1</span>
+          </div>
+          <div id="modalEpisodesList" class="space-y-2 max-h-52 overflow-y-auto no-scrollbar"></div>
+        </div>
+
+        <!-- Technical Metadata Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-white/10 text-xs">
+          <div>
+            <div class="text-white/40 uppercase tracking-wider text-[10px]">Format</div>
+            <div id="modalFormat" class="font-medium text-white/80">Direct Play</div>
+          </div>
+          <div>
+            <div class="text-white/40 uppercase tracking-wider text-[10px]">Subtitles</div>
+            <div id="modalSubs" class="font-medium text-white/80">Auto WebVTT / SRT</div>
+          </div>
+          <div>
+            <div class="text-white/40 uppercase tracking-wider text-[10px]">Server Engine</div>
+            <div class="font-medium text-orange-400">Orange TV</div>
+          </div>
+          <div>
+            <div class="text-white/40 uppercase tracking-wider text-[10px]">Artwork</div>
+            <div class="font-medium text-white/80">Local File System</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-2xl opacity-0 pointer-events-none transition-all duration-300">
+    <div id="settingsBox" class="glass-card max-w-lg w-full rounded-2xl overflow-hidden shadow-2xl border border-white/15 p-6 space-y-5 transform scale-95 transition-transform duration-300 bg-[#16141a]">
+      <div class="flex items-center justify-between border-b border-white/10 pb-3">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          Orange TV Settings
+        </h3>
+        <button onclick="closeSettingsModal()" tabindex="0" class="glass-btn p-1.5 rounded-full text-white">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <div>
+          <label class="block text-white/70 font-medium mb-1">Local Network Stream URL (Smart TV)</label>
+          <div id="settingsTvUrl" class="font-mono bg-white/5 border border-white/10 px-3 py-2 rounded-xl text-orange-400 select-all">
+            http://localhost:3000
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-white/70 font-medium mb-1">Additional Media Directories (Comma separated)</label>
+          <input type="text" id="extraPathsInput" placeholder="/Volumes/Media, /Users/.../Movies" class="w-full bg-white/10 border border-white/10 focus:border-orange-500/50 rounded-xl px-3 py-2 text-white outline-none">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+        <button onclick="closeSettingsModal()" class="glass-btn px-4 py-2 rounded-full text-xs text-white">Cancel</button>
+        <button onclick="saveSettings()" class="orange-primary-btn px-5 py-2 rounded-full text-xs">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Video Player Overlay -->
+  <div id="playerOverlay" class="fixed inset-0 z-50 bg-black flex flex-col justify-between opacity-0 pointer-events-none transition-opacity duration-300">
+    <video id="mainVideo" class="w-full h-full object-contain" playsinline></video>
+
+    <!-- Top Player Controls Bar -->
+    <div id="playerTopBar" class="absolute top-0 left-0 right-0 p-6 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent transition-opacity duration-300">
+      <button onclick="closePlayer()" tabindex="0" class="glass-btn px-4 py-2 rounded-full flex items-center gap-2 text-xs font-semibold text-white">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        Done
+      </button>
+
+      <div class="text-center">
+        <div id="playerTitle" class="text-sm font-bold text-white drop-shadow">Title</div>
+        <div id="playerSubtitle" class="text-xs text-white/60">Orange TV</div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button onclick="toggleSubsMenu(event)" tabindex="0" class="glass-btn p-2 rounded-full text-white/80 hover:text-white" title="Subtitles">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"></rect><line x1="7" y1="15" x2="7.01" y2="15"></line><line x1="11" y1="15" x2="13" y2="15"></line></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Floating Subtitles Popup -->
+    <div id="subsMenu" class="absolute top-20 right-6 glass-card p-3 rounded-xl w-52 space-y-1.5 hidden shadow-2xl border border-white/20 z-50">
+      <div class="text-[11px] font-bold uppercase tracking-wider text-orange-400 px-2">Subtitles</div>
+      <div id="subsList" class="space-y-1"></div>
+    </div>
+
+    <!-- Bottom Scrubber Bar -->
+    <div id="playerBottomBar" class="absolute bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-3xl glass-nav px-6 py-4 rounded-3xl shadow-2xl space-y-3 transition-opacity duration-300">
+      <div class="flex items-center gap-3">
+        <span id="playerCurrentTime" class="text-xs font-mono text-white/70 w-12 text-right">00:00</span>
+        <div class="relative flex-1 h-2 bg-white/20 rounded-full cursor-pointer group" onclick="seekVideo(event)">
+          <div id="playerScrubberProgress" class="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-orange-500 to-amber-400 rounded-full" style="width: 0%;"></div>
+          <div id="playerScrubberKnob" class="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" style="left: 0%;"></div>
+        </div>
+        <span id="playerDuration" class="text-xs font-mono text-white/70 w-12">00:00</span>
+      </div>
+
+      <div class="flex items-center justify-between pt-1">
+        <div class="w-24"></div>
+
+        <!-- Center Transport (Rewind 10s, Play/Pause, Forward 10s) -->
+        <div class="flex items-center gap-4">
+          <button onclick="skipSeconds(-10)" tabindex="0" class="p-2 text-white/80 hover:text-white transition-transform active:scale-90" title="Rewind 10s">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 4v6h6"></path>
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+              <text x="12" y="15.5" font-size="8" font-family="-apple-system, sans-serif" font-weight="bold" fill="currentColor" text-anchor="middle">10</text>
+            </svg>
+          </button>
+
+          <button id="playerPlayPauseBtn" onclick="togglePlayPause()" tabindex="0" class="orange-primary-btn p-3.5 rounded-full">
+            <svg id="playIcon" class="w-5 h-5 fill-current" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            <svg id="pauseIcon" class="w-5 h-5 fill-current hidden" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+          </button>
+
+          <button onclick="skipSeconds(10)" tabindex="0" class="p-2 text-white/80 hover:text-white transition-transform active:scale-90" title="Forward 10s">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 4v6h-6"></path>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+              <text x="12" y="15.5" font-size="8" font-family="-apple-system, sans-serif" font-weight="bold" fill="currentColor" text-anchor="middle">10</text>
+            </svg>
+          </button>
+        </div>
+
+        <div class="w-24 flex justify-end">
+          <button onclick="toggleFullscreen()" tabindex="0" class="p-2 text-white/80 hover:text-white transition-transform active:scale-90" title="Fullscreen">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * Orange TV Application Controller
+     */
+    let library = { movies: [], tvShows: [], movieSeries: [], continueWatching: [] };
+    let heroCandidates = [];
+    let heroIndex = 0;
+    let currentHero = null;
+    let activeModalItem = null;
+    let currentlyPlayingMedia = null;
+    let progressTimer = null;
+
+    // Pop-out Preview State
+    let popoutHoverDebounce = null;
+    let popoutDwellTimer = null;
+    let popoutHideTimer = null;
+    let activePopoutItem = null;
+    let popoutMuted = true;
+    let activeTheaterItem = null;
+
+    async function loadLibrary() {
+      try {
+        const res = await fetch('/api/library');
+        if (res.ok) {
+          library = await res.json();
+          renderUI();
+        }
+      } catch (err) {
+        console.error('[Orange TV] Failed to load library:', err);
+      }
+    }
+
+    // 3D Tilt Card Parallax
+    function attachCard3DEffect(cardWrapper) {
+      const card = cardWrapper.querySelector('.tv-card');
+      if (!card) return;
+
+      cardWrapper.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const rotateX = ((y - centerY) / centerY) * -8;
+        const rotateY = ((x - centerX) / centerX) * 8;
+
+        card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.04, 1.04, 1.04) translateY(-3px)`;
+
+        const glare = card.querySelector('.tv-card-glare');
+        if (glare) {
+          glare.style.background = `radial-gradient(circle at ${x}px ${y}px, rgba(255,180,60,0.35), transparent 70%)`;
+        }
+      });
+
+      cardWrapper.addEventListener('mouseleave', () => {
+        card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)';
+      });
+
+      cardWrapper.addEventListener('pointerdown', () => {
+        card.style.transform = 'perspective(1000px) scale3d(0.97, 0.97, 0.97)';
+      });
+      cardWrapper.addEventListener('pointerup', () => {
+        card.style.transform = 'perspective(1000px) scale3d(1.04, 1.04, 1.04)';
+      });
+    }
+
+    // Floating 3x Pop-Out Preview Controller
+    let currentPopoutWrapper = null;
+
+    function showPopoutPreview(cardWrapper, item, immediate = false) {
+      clearTimeout(popoutHideTimer);
+      clearTimeout(popoutHoverDebounce);
+
+      const renderPopout = () => {
+        activePopoutItem = item;
+        currentPopoutWrapper = cardWrapper;
+        const popout = document.getElementById('cardPopoutPreview');
+        const card = cardWrapper.querySelector('.tv-card') || cardWrapper;
+        const rect = card.getBoundingClientRect();
+
+        // 3x Pop-Out Dimensions (~440px width, clean 16:9 artwork window)
+        const popWidth = Math.min(440, window.innerWidth - 32);
+        const popHeight = 410;
+
+        let left = rect.left + (rect.width / 2) - (popWidth / 2);
+        let top = rect.top + (rect.height / 2) - (popHeight / 2);
+
+        // Keep inside viewport with margins
+        if (left < 16) left = 16;
+        if (left + popWidth > window.innerWidth - 16) left = window.innerWidth - popWidth - 16;
+        if (top < 70) top = 70;
+        if (top + popHeight > window.innerHeight - 16) top = window.innerHeight - popHeight - 16;
+
+        popout.style.left = `${left}px`;
+        popout.style.top = `${top}px`;
+        popout.style.width = `${popWidth}px`;
+        popout.style.transform = '';
+
+        // Content
+        const poster = item.backdropUrl || item.posterUrl || `/api/backdrop/${item.id}` || `/api/poster/${item.id}`;
+        document.getElementById('popoutPoster').src = poster;
+        document.getElementById('popoutTitle').textContent = item.title;
+        document.getElementById('popoutYear').textContent = item.year || '2026';
+        document.getElementById('popoutRating').textContent = item.rating ? `★ ${item.rating}` : '★ 8.8';
+        document.getElementById('popoutViews').textContent = `${item.views || 0} views`;
+        document.getElementById('popoutGenre').textContent = (item.genres && item.genres[0]) || (item.type === 'tv' ? 'Series' : 'Cinema');
+        document.getElementById('popoutOverview').textContent = item.overview || 'Stream high-definition cinema on Orange TV.';
+
+        // Action button callbacks
+        document.getElementById('popoutPlayBtn').onclick = (e) => {
+          e.stopPropagation();
+          hidePopoutPreview(true);
+          playDirectMedia(item.id);
+        };
+        document.getElementById('popoutTheaterBtn').onclick = (e) => {
+          e.stopPropagation();
+          hidePopoutPreview(true);
+          openTrailerTheater(item);
+        };
+        document.getElementById('popoutDetailsBtn').onclick = (e) => {
+          e.stopPropagation();
+          hidePopoutPreview(true);
+          openDetails(item);
+        };
+
+        // Video Trailer Preview
+        const popVideo = document.getElementById('popoutVideo');
+        popVideo.src = `/api/trailer/${item.id}`;
+        popVideo.currentTime = 0;
+        popVideo.muted = popoutMuted;
+        popVideo.play().then(() => {
+          popVideo.style.opacity = '1';
+        }).catch(() => {});
+
+        // Show Pop-Out
+        popout.classList.remove('opacity-0', 'pointer-events-none', 'scale-90');
+        popout.classList.add('opacity-100', 'pointer-events-auto', 'scale-100');
+
+        // Automatic 80% Screen Space Theater expansion on 5s dwell
+        clearTimeout(popoutDwellTimer);
+        popoutDwellTimer = setTimeout(() => {
+          if (activePopoutItem === item) {
+            hidePopoutPreview(true);
+            openTrailerTheater(item);
+          }
+        }, 5000);
+      };
+
+      if (immediate) {
+        renderPopout();
+      } else {
+        // 1 second (1000ms) hover delay for 3x pop-up
+        popoutHoverDebounce = setTimeout(renderPopout, 1000);
+      }
+    }
+
+    function hidePopoutPreview(immediate = false) {
+      clearTimeout(popoutHoverDebounce);
+      clearTimeout(popoutDwellTimer);
+
+      const doHide = () => {
+        const popout = document.getElementById('cardPopoutPreview');
+        const popVideo = document.getElementById('popoutVideo');
+        if (popout) {
+          popout.classList.add('opacity-0', 'pointer-events-none', 'scale-90');
+          popout.classList.remove('opacity-100', 'pointer-events-auto', 'scale-100');
+          popout.style.transform = '';
+        }
+        if (popVideo) {
+          popVideo.style.opacity = '0';
+          popVideo.pause();
+          popVideo.removeAttribute('src');
+          popVideo.load();
+        }
+        activePopoutItem = null;
+        currentPopoutWrapper = null;
+      };
+
+      if (immediate) {
+        clearTimeout(popoutHideTimer);
+        doHide();
+      } else {
+        clearTimeout(popoutHideTimer);
+        popoutHideTimer = setTimeout(doHide, 160);
+      }
+    }
+
+    function togglePopoutMute(e) {
+      if (e) e.stopPropagation();
+      const popVideo = document.getElementById('popoutVideo');
+      const icon = document.getElementById('popoutMuteIcon');
+      popoutMuted = !popoutMuted;
+      if (popVideo) popVideo.muted = popoutMuted;
+      if (icon) icon.textContent = popoutMuted ? '🔇' : '🔊';
+    }
+
+    // Navigate to previous/next card in the active carousel row
+    function navigatePopout(dir, event) {
+      if (event) event.stopPropagation();
+      if (!currentPopoutWrapper) return;
+      const parentRow = currentPopoutWrapper.parentElement;
+      if (!parentRow) return;
+
+      const siblings = Array.from(parentRow.querySelectorAll('.tv-card-wrapper'));
+      const currentIndex = siblings.indexOf(currentPopoutWrapper);
+      if (currentIndex === -1) return;
+
+      let nextIndex = currentIndex + dir;
+      if (nextIndex < 0) nextIndex = siblings.length - 1;
+      if (nextIndex >= siblings.length) nextIndex = 0;
+
+      const targetCard = siblings[nextIndex];
+      if (targetCard && targetCard.__itemData) {
+        targetCard.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        showPopoutPreview(targetCard, targetCard.__itemData, true);
+      }
+    }
+
+    // Connect pop-out hover persistence and mouse gestures for moving left and right
+    const popoutEl = document.getElementById('cardPopoutPreview');
+    if (popoutEl) {
+      popoutEl.addEventListener('mouseenter', () => {
+        clearTimeout(popoutHideTimer);
+      });
+      popoutEl.addEventListener('mouseleave', () => {
+        hidePopoutPreview();
+      });
+
+      // Pointer / Mouse Drag gesture left and right
+      let isDraggingPopout = false;
+      let popoutDragStartX = 0;
+      let popoutDragStartY = 0;
+
+      popoutEl.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('button') || e.target.closest('input')) return;
+        isDraggingPopout = true;
+        popoutDragStartX = e.clientX;
+        popoutDragStartY = e.clientY;
+      });
+
+      window.addEventListener('pointermove', (e) => {
+        if (!isDraggingPopout) return;
+        const diffX = e.clientX - popoutDragStartX;
+        const diffY = e.clientY - popoutDragStartY;
+        if (Math.abs(diffX) > 8 && Math.abs(diffX) > Math.abs(diffY)) {
+          popoutEl.style.transform = `translateX(${diffX * 0.35}px) scale(1)`;
+        }
+      });
+
+      window.addEventListener('pointerup', (e) => {
+        if (!isDraggingPopout) return;
+        isDraggingPopout = false;
+        const diffX = e.clientX - popoutDragStartX;
+        popoutEl.style.transform = '';
+        if (diffX < -35) {
+          navigatePopout(1); // Swiped Left -> Next Movie
+        } else if (diffX > 35) {
+          navigatePopout(-1); // Swiped Right -> Previous Movie
+        }
+      });
+
+      // Mouse wheel / trackpad horizontal gesture for moving left and right
+      let popoutWheelAccumulator = 0;
+      let popoutWheelResetTimer = null;
+
+      popoutEl.addEventListener('wheel', (e) => {
+        const dx = e.deltaX !== 0 ? e.deltaX : (e.shiftKey ? e.deltaY : 0);
+        if (Math.abs(dx) > 8) {
+          popoutWheelAccumulator += dx;
+          clearTimeout(popoutWheelResetTimer);
+          popoutWheelResetTimer = setTimeout(() => { popoutWheelAccumulator = 0; }, 250);
+
+          if (currentPopoutWrapper && currentPopoutWrapper.parentElement) {
+            currentPopoutWrapper.parentElement.scrollLeft += dx;
+          }
+
+          if (popoutWheelAccumulator > 50) {
+            popoutWheelAccumulator = 0;
+            navigatePopout(1);
+          } else if (popoutWheelAccumulator < -50) {
+            popoutWheelAccumulator = 0;
+            navigatePopout(-1);
+          }
+        }
+      }, { passive: true });
+    }
+
+    // Media Card Creator preserving Natural 2:3 Studio Poster Proportions
+    function createMediaCard(item, isSeriesFilm = false) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'tv-card-wrapper flex-shrink-0 cursor-pointer select-none';
+      wrapper.tabIndex = 0;
+      wrapper.__itemData = item;
+
+      const poster = item.posterUrl || `/api/poster/${item.id}`;
+      const epCount = item.type === 'tv'
+        ? (item.seasons || []).reduce((acc, s) => acc + (s.episodes?.length || 0), 0)
+        : null;
+
+      wrapper.innerHTML = `
+        <div class="tv-card relative w-48 sm:w-56 aspect-[2/3] rounded-2xl overflow-hidden glass-card group border border-white/10 transition-all duration-300 shadow-xl">
+          <!-- Exact 2:3 Poster Artwork -->
+          <img src="${poster}" alt="${item.title}" class="absolute inset-0 w-full h-full object-cover rounded-2xl transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+
+          <!-- Gradient Ambient Scrim -->
+          <div class="absolute inset-0 bg-gradient-to-t from-black/95 via-black/25 to-transparent rounded-2xl"></div>
+          <div class="tv-card-glare"></div>
+
+          <!-- Top Status Badges -->
+          <div class="absolute top-2.5 right-2.5 flex flex-col items-end gap-1 z-20">
+            ${isSeriesFilm && item.part ? `
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-orange-500 text-white shadow-md">
+                ${item.part}
+              </span>
+            ` : ''}
+            ${item.type === 'tv' ? `
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-orange-500/30 text-orange-200 border border-orange-500/30 backdrop-blur-md">
+                SERIES
+              </span>
+            ` : ''}
+            ${item.year ? `
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/60 backdrop-blur-md text-white border border-white/10">
+                ${item.year}
+              </span>
+            ` : ''}
+            <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-orange-500/25 text-orange-300 border border-orange-500/30 backdrop-blur-md">
+              ${item.views || 0} views
+            </span>
+          </div>
+
+          <!-- Bottom Info Overlay -->
+          <div class="absolute bottom-0 inset-x-0 p-3.5 space-y-1.5 z-20">
+            <div class="text-xs sm:text-sm font-bold text-white truncate drop-shadow">${item.title}</div>
+            <div class="flex items-center gap-2 text-[10px] text-white/60">
+              ${item.rating ? `<span class="text-amber-400 font-semibold">★ ${item.rating}</span><span>•</span>` : ''}
+              <span class="truncate">${epCount ? `${epCount} Episodes` : ((item.genres && item.genres[0]) || 'Cinema')}</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      wrapper.onclick = () => openDetails(item);
+      attachCard3DEffect(wrapper);
+
+      // 3x Pop-Out Preview (1s delay) & 80% Theater dwell (5s)
+      wrapper.addEventListener('mouseenter', () => showPopoutPreview(wrapper, item));
+      wrapper.addEventListener('mouseleave', () => hidePopoutPreview());
+
+      return wrapper;
+    }
+
+    function renderUI() {
+      renderHero();
+      renderUpNext();
+      renderMovies();
+      renderTvShows();
+      renderMovieSeries();
+    }
+
+    // Hero Carousel Previous & Next Cycling
+    function cycleHero(dir) {
+      if (!heroCandidates || heroCandidates.length === 0) return;
+      heroIndex = (heroIndex + dir + heroCandidates.length) % heroCandidates.length;
+      displayHero(heroCandidates[heroIndex]);
+    }
+
+    function renderHero() {
+      const pool = [
+        ...(library.movies || []),
+        ...(library.tvShows || [])
+      ];
+
+      heroCandidates = pool.filter(m => m.backdropUrl || m.posterUrl);
+      if (heroCandidates.length === 0) heroCandidates = pool;
+
+      if (heroCandidates.length === 0) {
+        document.getElementById('heroTitle').textContent = 'Welcome to Orange TV';
+        document.getElementById('heroOverview').textContent = 'Your library is ready. Place movies or TV series into your folders and start streaming.';
+        return;
+      }
+
+      if (heroIndex >= heroCandidates.length) heroIndex = 0;
+      displayHero(heroCandidates[heroIndex]);
+    }
+
+    function displayHero(hero) {
+      currentHero = hero;
+      if (!currentHero) return;
+
+      document.getElementById('heroTitle').textContent = currentHero.title;
+      document.getElementById('heroOverview').textContent = currentHero.overview || (currentHero.type === 'tv' ? 'Stream full seasons directly from your local library.' : 'High-definition streaming with Orange TV.');
+      document.getElementById('heroYear').textContent = currentHero.year || '2026';
+      
+      const ratingEl = document.getElementById('heroRating');
+      if (currentHero.rating) {
+        ratingEl.textContent = `★ ${currentHero.rating}`;
+        ratingEl.style.display = 'inline';
+      } else {
+        ratingEl.style.display = 'none';
+      }
+
+      const genreEl = document.getElementById('heroGenre');
+      const g = (currentHero.genres && currentHero.genres[0]) || (currentHero.type === 'tv' ? 'Series' : 'Cinema');
+      genreEl.textContent = g;
+
+      const viewsCountEl = document.getElementById('heroViewsCount');
+      viewsCountEl.textContent = `${currentHero.views || 0} views`;
+
+      // Always anchor hero backdrop to center top so upper part is never cut off
+      const bgUrl = currentHero.backdropUrl || currentHero.posterUrl || `/api/backdrop/${currentHero.id}` || `/api/poster/${currentHero.id}`;
+      const heroEl = document.getElementById('heroBackdrop');
+      heroEl.style.backgroundImage = `url('${bgUrl}')`;
+      heroEl.style.backgroundPosition = 'center top';
+      heroEl.style.backgroundSize = 'cover';
+      heroEl.style.backgroundRepeat = 'no-repeat';
+    }
+
+    function renderUpNext() {
+      const rowSection = document.getElementById('rowUpNext');
+      const container = document.getElementById('upNextScroll');
+      container.innerHTML = '';
+
+      // Strictly filter out deleted or missing titles
+      const validIds = new Set([
+        ...(library.movies || []).map(m => m.id),
+        ...(library.tvShows || []).map(t => t.id)
+      ]);
+
+      const continueList = (library.continueWatching || []).filter(item => validIds.has(item.id));
+      if (continueList.length === 0) {
+        rowSection.style.display = 'none';
+        return;
+      }
+
+      rowSection.style.display = 'block';
+      continueList.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'tv-card-wrapper flex-shrink-0 cursor-pointer';
+        card.tabIndex = 0;
+
+        const progressPercent = item.percent || 20;
+        const bgImg = item.backdropUrl || `/api/backdrop/${item.id}` || item.posterUrl || `/api/poster/${item.id}`;
+        const subLabel = item.showTitle ? `S${item.season}:E${item.episode}` : `${Math.max(1, Math.round((100 - progressPercent) * 0.9))}m left`;
+
+        card.innerHTML = `
+          <div class="tv-card relative w-64 sm:w-80 h-36 sm:h-44 rounded-2xl overflow-hidden glass-card group border border-white/10 transition-all duration-300">
+            <div class="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105" style="background-image: url('${bgImg}');"></div>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20"></div>
+            <div class="tv-card-glare"></div>
+
+            <div class="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-orange-500/30 text-orange-200 border border-orange-500/30 backdrop-blur-md">
+              Resume
+            </div>
+
+            <!-- Center Play Button Overlay -->
+            <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <div class="w-12 h-12 rounded-full bg-orange-500 text-white flex items-center justify-center shadow-2xl transform scale-90 group-hover:scale-100 transition-transform">
+                <svg class="w-5 h-5 fill-current ml-0.5" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              </div>
+            </div>
+
+            <!-- Bottom Progress & Subtitle -->
+            <div class="absolute bottom-0 left-0 right-0 p-3 space-y-1.5 z-10">
+              <div class="flex items-center justify-between text-xs font-semibold text-white">
+                <span class="truncate">${item.title}</span>
+                <span class="text-orange-400 font-mono text-[11px]">${subLabel}</span>
+              </div>
+              <div class="orange-progress">
+                <div class="orange-progress-fill" style="width: ${progressPercent}%;"></div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        card.onclick = () => playDirectMedia(item.id);
+        container.appendChild(card);
+      });
+    }
+
+    function renderMovies() {
+      const container = document.getElementById('moviesScroll');
+      container.innerHTML = '';
+
+      (library.movies || []).forEach(item => {
+        container.appendChild(createMediaCard(item));
+      });
+    }
+
+    function renderTvShows() {
+      const container = document.getElementById('tvScroll');
+      container.innerHTML = '';
+
+      (library.tvShows || []).forEach(item => {
+        container.appendChild(createMediaCard(item));
+      });
+    }
+
+    // Render Movie Series with Separate Headings per Franchise
+    function renderMovieSeries() {
+      const container = document.getElementById('seriesContainer');
+      container.innerHTML = '';
+
+      const seriesList = library.movieSeries || [];
+      if (seriesList.length === 0) {
+        document.getElementById('sectionMovieSeries').style.display = 'none';
+        return;
+      }
+      document.getElementById('sectionMovieSeries').style.display = 'block';
+
+      seriesList.forEach((series, idx) => {
+        const seriesBlock = document.createElement('div');
+        seriesBlock.className = 'space-y-3';
+
+        const rowId = `seriesScroll_${idx}`;
+        seriesBlock.innerHTML = `
+          <div class="flex items-center justify-between border-l-2 border-orange-500 pl-3">
+            <div>
+              <h3 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                ${series.title}
+                <span class="text-xs font-normal text-white/50">${series.tagline || ''}</span>
+              </h3>
+              <p class="text-xs text-white/60 line-clamp-1 max-w-xl">${series.overview || ''}</p>
+            </div>
+            <div class="flex items-center gap-1">
+              <button onclick="scrollRow('${rowId}', -1)" tabindex="0" class="glass-btn p-1.5 rounded-full text-white/70 hover:text-white">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+              </button>
+              <button onclick="scrollRow('${rowId}', 1)" tabindex="0" class="glass-btn p-1.5 rounded-full text-white/70 hover:text-white">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              </button>
+            </div>
+          </div>
+
+          <div id="${rowId}" class="flex gap-6 sm:gap-7 overflow-x-auto no-scrollbar scroll-smooth py-4 px-1">
+          </div>
+        `;
+
+        const rowContainer = seriesBlock.querySelector(`#${rowId}`);
+        (series.movies || []).forEach(m => {
+          rowContainer.appendChild(createMediaCard(m, true));
+        });
+
+        container.appendChild(seriesBlock);
+      });
+    }
+
+    // --- Immersive 80% Screen Space Trailer Theater Controller ---
+    function openTrailerTheaterById(id) {
+      const allItems = [
+        ...(library.movies || []),
+        ...(library.tvShows || []),
+        ...((library.movieSeries || []).flatMap(s => s.movies || []))
+      ];
+      const item = allItems.find(m => m.id === id);
+      if (item) openTrailerTheater(item);
+    }
+
+    function openTrailerTheater(item) {
+      if (!item) return;
+
+      hidePopoutPreview(true);
+
+      activeTheaterItem = item;
+      const theater = document.getElementById('trailerTheater');
+      const box = document.getElementById('theaterBox');
+      const video = document.getElementById('theaterVideo');
+
+      document.getElementById('theaterTitle').textContent = item.title;
+      document.getElementById('theaterYear').textContent = item.year || (item.type === 'tv' ? 'Series' : '2026');
+      document.getElementById('theaterRating').textContent = item.rating ? `★ ${item.rating}` : '★ 8.8';
+      document.getElementById('theaterViews').textContent = `${item.views || 0} views`;
+      document.getElementById('theaterGenres').textContent = (item.genres || []).join(' • ') || 'Cinema';
+      document.getElementById('theaterOverview').textContent = item.overview || 'Watch the official high-definition preview in the Orange TV Theater.';
+
+      theater.classList.remove('opacity-0', 'pointer-events-none');
+      box.classList.remove('scale-95');
+      box.classList.add('scale-100');
+
+      video.src = `/api/trailer/${item.id}`;
+      video.currentTime = 0;
+      video.muted = false;
+      updateTheaterMuteUI();
+
+      video.play().catch(() => {
+        // Fallback for browser autoplay restrictions
+        video.muted = true;
+        updateTheaterMuteUI();
+        video.play().catch(() => {});
+      });
+
+      // Update progress bar and time indicator directly below the top title bar
+      video.ontimeupdate = () => {
+        if (video.duration && !isNaN(video.duration)) {
+          const pct = (video.currentTime / video.duration) * 100;
+          document.getElementById('theaterProgressBar').style.width = `${pct}%`;
+          document.getElementById('theaterTimeDisplay').textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+        }
+      };
+    }
+
+    function closeTrailerTheater() {
+      const theater = document.getElementById('trailerTheater');
+      const box = document.getElementById('theaterBox');
+      const video = document.getElementById('theaterVideo');
+      if (video) {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      }
+      theater.classList.add('opacity-0', 'pointer-events-none');
+      box.classList.add('scale-95');
+      box.classList.remove('scale-100');
+      activeTheaterItem = null;
+    }
+
+    function toggleTheaterMute() {
+      const video = document.getElementById('theaterVideo');
+      if (!video) return;
+      video.muted = !video.muted;
+      updateTheaterMuteUI();
+    }
+
+    function updateTheaterMuteUI() {
+      const video = document.getElementById('theaterVideo');
+      const icon = document.getElementById('theaterMuteIcon');
+      const text = document.getElementById('theaterMuteText');
+      if (!video || !icon || !text) return;
+      if (video.muted) {
+        icon.textContent = '🔇';
+        text.textContent = 'Unmute';
+      } else {
+        icon.textContent = '🔊';
+        text.textContent = 'Mute';
+      }
+    }
+
+    function seekTheaterVideo(e) {
+      const video = document.getElementById('theaterVideo');
+      if (!video || !video.duration) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const pos = (e.clientX - rect.left) / rect.width;
+      video.currentTime = Math.max(0, Math.min(video.duration, pos * video.duration));
+    }
+
+    function startMovieFromTheater() {
+      const item = activeTheaterItem;
+      closeTrailerTheater();
+      if (item) {
+        playDirectMedia(item.id);
+      }
+    }
+
+    function playDirectMedia(id) {
+      const allItems = [
+        ...(library.movies || []),
+        ...(library.tvShows || []),
+        ...((library.movieSeries || []).flatMap(s => s.movies || []))
+      ];
+      const item = allItems.find(m => m.id === id);
+      if (!item) return;
+      if (item.type === 'tv' && item.seasons?.[0]?.episodes?.[0]) {
+        launchStream(item.seasons[0].episodes[0]);
+      } else {
+        launchStream(item);
+      }
+    }
+
+    function openDetailsById(id) {
+      const allItems = [
+        ...(library.movies || []),
+        ...(library.tvShows || []),
+        ...((library.movieSeries || []).flatMap(s => s.movies || []))
+      ];
+      const item = allItems.find(m => m.id === id);
+      if (item) openDetails(item);
+    }
+
+    function scrollRow(id, dir) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const amount = el.clientWidth * 0.75;
+      el.scrollBy({ left: dir * amount, behavior: 'smooth' });
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.nav-tab').forEach(b => {
+        b.className = 'nav-tab px-3.5 py-1.5 rounded-full text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition-all';
+      });
+      const activeBtn = document.getElementById(`nav-${tab}`);
+      if (activeBtn) {
+        activeBtn.className = 'nav-tab active px-3.5 py-1.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-orange-500 to-amber-500 shadow-md shadow-orange-500/25 transition-all';
+      }
+
+      const upNext = document.getElementById('rowUpNext');
+      const movies = document.getElementById('rowMovies');
+      const tv = document.getElementById('rowTv');
+      const series = document.getElementById('sectionMovieSeries');
+
+      if (tab === 'all') {
+        const validIds = new Set([
+          ...(library.movies || []).map(m => m.id),
+          ...(library.tvShows || []).map(t => t.id)
+        ]);
+        const validContinue = (library.continueWatching || []).filter(item => validIds.has(item.id));
+        if (validContinue.length > 0 && upNext) upNext.style.display = 'block';
+        if (movies) movies.style.display = 'block';
+        if (tv) tv.style.display = 'block';
+        if (series) series.style.display = 'block';
+      } else if (tab === 'movies') {
+        if (upNext) upNext.style.display = 'none';
+        if (movies) movies.style.display = 'block';
+        if (tv) tv.style.display = 'none';
+        if (series) series.style.display = 'none';
+      } else if (tab === 'tv') {
+        if (upNext) upNext.style.display = 'none';
+        if (movies) movies.style.display = 'none';
+        if (tv) tv.style.display = 'block';
+        if (series) series.style.display = 'none';
+      } else if (tab === 'series') {
+        if (upNext) upNext.style.display = 'none';
+        if (movies) movies.style.display = 'none';
+        if (tv) tv.style.display = 'none';
+        if (series) series.style.display = 'block';
+      }
+    }
+
+    function handleSearch(val) {
+      const q = val.toLowerCase().trim();
+      if (!q) {
+        renderUI();
+        return;
+      }
+
+      const matchedMovies = (library.movies || []).filter(m => m.title.toLowerCase().includes(q));
+      const matchedTv = (library.tvShows || []).filter(t => t.title.toLowerCase().includes(q));
+
+      const oldMovies = library.movies;
+      const oldTv = library.tvShows;
+
+      library.movies = matchedMovies;
+      library.tvShows = matchedTv;
+      renderMovies();
+      renderTvShows();
+
+      library.movies = oldMovies;
+      library.tvShows = oldTv;
+    }
+
+    // Modal Details
+    function openDetails(item) {
+      activeModalItem = item;
+      document.getElementById('modalTitle').textContent = item.title;
+      document.getElementById('modalOverview').textContent = item.overview || 'Stream this title in high-definition on Orange TV.';
+      document.getElementById('modalRating').textContent = item.rating ? `★ ${item.rating}` : '★ 8.8';
+      document.getElementById('modalTypeBadge').textContent = item.type === 'tv' ? 'TV SHOW' : (item.part ? 'SERIES FILM' : 'MOVIE');
+      document.getElementById('modalViewsCount').textContent = `${item.views || 0} Views`;
+      
+      const bg = item.backdropUrl || item.posterUrl || `/api/poster/${item.id}`;
+      document.getElementById('modalBackdrop').style.backgroundImage = `url('${bg}')`;
+
+      const epSec = document.getElementById('modalEpisodesSection');
+      const epList = document.getElementById('modalEpisodesList');
+      if (item.type === 'tv' && item.seasons && item.seasons.length > 0) {
+        epSec.classList.remove('hidden');
+        epList.innerHTML = '';
+        item.seasons.forEach(s => {
+          (s.episodes || []).forEach(ep => {
+            const row = document.createElement('div');
+            row.className = 'flex items-center justify-between p-2.5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer text-xs';
+            row.onclick = () => { closeDetails(); launchStream(ep); };
+            row.innerHTML = `
+              <div class="flex items-center gap-3">
+                <span class="w-6 h-6 rounded-full bg-orange-500/20 text-orange-400 font-bold flex items-center justify-center text-[10px]">${ep.episode}</span>
+                <div>
+                  <div class="font-medium text-white">${ep.title}</div>
+                  <div class="text-[10px] text-white/50">Season ${ep.season || 1} • Episode ${ep.episode}</div>
+                </div>
+              </div>
+              <button class="orange-primary-btn p-1.5 rounded-full">
+                <svg class="w-3.5 h-3.5 fill-current ml-0.5" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              </button>
+            `;
+            epList.appendChild(row);
+          });
+        });
+      } else {
+        epSec.classList.add('hidden');
+      }
+
+      const modal = document.getElementById('detailModal');
+      const box = document.getElementById('modalBox');
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+      box.classList.remove('scale-95');
+      box.classList.add('scale-100');
+    }
+
+    function closeDetails() {
+      const modal = document.getElementById('detailModal');
+      const box = document.getElementById('modalBox');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+      box.classList.add('scale-95');
+      box.classList.remove('scale-100');
+    }
+
+    function playModalItem() {
+      if (!activeModalItem) return;
+      closeDetails();
+      if (activeModalItem.type === 'tv' && activeModalItem.seasons?.[0]?.episodes?.[0]) {
+        launchStream(activeModalItem.seasons[0].episodes[0]);
+      } else {
+        launchStream(activeModalItem);
+      }
+    }
+
+    function playModalTrailer() {
+      if (!activeModalItem) return;
+      closeDetails();
+      launchTrailer(activeModalItem);
+    }
+
+    function playCurrentHero() {
+      if (!currentHero) return;
+      if (currentHero.type === 'tv' && currentHero.seasons?.[0]?.episodes?.[0]) {
+        launchStream(currentHero.seasons[0].episodes[0]);
+      } else {
+        launchStream(currentHero);
+      }
+    }
+
+    function playCurrentHeroTrailer() {
+      if (!currentHero) return;
+      launchTrailer(currentHero);
+    }
+
+    function launchTrailer(media) {
+      launchStream({
+        ...media,
+        title: `${media.title || media.showTitle} (Trailer)`,
+        streamUrl: `/api/trailer/${media.id}`
+      });
+    }
+
+    function openHeroDetails() {
+      if (currentHero) openDetails(currentHero);
+    }
+
+    // Video Player
+    const video = document.getElementById('mainVideo');
+    let isPlaying = false;
+
+    async function launchStream(media) {
+      currentlyPlayingMedia = media;
+      document.getElementById('playerTitle').textContent = media.title || media.showTitle;
+      document.getElementById('playerSubtitle').textContent = media.showTitle ? `Season ${media.season} • Episode ${media.episode}` : 'Orange TV';
+
+      const overlay = document.getElementById('playerOverlay');
+      overlay.classList.remove('opacity-0', 'pointer-events-none');
+
+      // Increment view count on server
+      try {
+        const viewRes = await fetch(`/api/view/${media.id}`, { method: 'POST' });
+        if (viewRes.ok) {
+          const vd = await viewRes.json();
+          media.views = vd.views;
+          if (activeModalItem && activeModalItem.id === media.id) {
+            document.getElementById('modalViewsCount').textContent = `${media.views} Views`;
+          }
+        }
+      } catch (e) {}
+
+      // Subtitles setup
+      const subsList = document.getElementById('subsList');
+      subsList.innerHTML = `
+        <button onclick="setSubtitle(null)" class="w-full text-left px-2.5 py-1.5 text-xs rounded-lg hover:bg-white/10 text-white flex items-center justify-between">
+          <span>Off</span>
+        </button>
+      `;
+
+      while (video.firstChild) {
+        video.removeChild(video.firstChild);
+      }
+
+      if (media.subtitles && media.subtitles.length > 0) {
+        media.subtitles.forEach(sub => {
+          const track = document.createElement('track');
+          track.kind = 'subtitles';
+          track.label = sub.label || 'Subtitles';
+          track.srclang = 'en';
+          track.src = `/api/subtitles/${sub.id}`;
+          video.appendChild(track);
+
+          const btn = document.createElement('button');
+          btn.className = 'w-full text-left px-2.5 py-1.5 text-xs rounded-lg hover:bg-white/10 text-white flex items-center justify-between';
+          btn.innerHTML = `<span>${sub.label || 'English'}</span>`;
+          btn.onclick = () => setSubtitle(sub.id);
+          subsList.appendChild(btn);
+        });
+      }
+
+      const streamUrl = media.streamUrl || `/api/stream/${media.id}`;
+      video.src = streamUrl;
+      video.play().then(() => setPlayingState(true)).catch(() => {});
+
+      if (progressTimer) clearInterval(progressTimer);
+      progressTimer = setInterval(saveCurrentProgress, 5000);
+    }
+
+    function closePlayer() {
+      saveCurrentProgress();
+      if (progressTimer) clearInterval(progressTimer);
+      video.pause();
+      setPlayingState(false);
+      document.getElementById('playerOverlay').classList.add('opacity-0', 'pointer-events-none');
+      loadLibrary();
+    }
+
+    function setPlayingState(playing) {
+      isPlaying = playing;
+      document.getElementById('playIcon').classList.toggle('hidden', isPlaying);
+      document.getElementById('pauseIcon').classList.toggle('hidden', !isPlaying);
+    }
+
+    function togglePlayPause() {
+      if (video.paused) {
+        video.play();
+        setPlayingState(true);
+      } else {
+        video.pause();
+        setPlayingState(false);
+      }
+    }
+
+    function skipSeconds(sec) {
+      video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + sec));
+    }
+
+    function seekVideo(e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const pos = (e.clientX - rect.left) / rect.width;
+      video.currentTime = pos * (video.duration || 1);
+    }
+
+    video.addEventListener('timeupdate', () => {
+      const curr = video.currentTime || 0;
+      const dur = video.duration || 1;
+      const pct = (curr / dur) * 100;
+      document.getElementById('playerScrubberProgress').style.width = `${pct}%`;
+      document.getElementById('playerScrubberKnob').style.left = `${pct}%`;
+      document.getElementById('playerCurrentTime').textContent = formatTime(curr);
+      document.getElementById('playerDuration').textContent = formatTime(dur);
+    });
+
+    function formatTime(s) {
+      const mins = Math.floor(s / 60);
+      const secs = Math.floor(s % 60);
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function toggleSubsMenu(e) {
+      e.stopPropagation();
+      document.getElementById('subsMenu').classList.toggle('hidden');
+    }
+
+    function setSubtitle(subId) {
+      for (let i = 0; i < video.textTracks.length; i++) {
+        video.textTracks[i].mode = 'disabled';
+      }
+      if (subId && video.textTracks[0]) {
+        video.textTracks[0].mode = 'showing';
+      }
+      document.getElementById('subsMenu').classList.add('hidden');
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.getElementById('playerOverlay').requestFullscreen?.();
+      } else {
+        document.exitFullscreen?.();
+      }
+    }
+
+    async function saveCurrentProgress() {
+      if (!currentlyPlayingMedia || !video.duration || video.duration === 0) return;
+      const currentTime = Math.floor(video.currentTime);
+      const duration = Math.floor(video.duration);
+      if (currentTime < 2) return;
+
+      try {
+        await fetch('/api/progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: currentlyPlayingMedia.id,
+            type: currentlyPlayingMedia.type,
+            title: currentlyPlayingMedia.title,
+            showTitle: currentlyPlayingMedia.showTitle,
+            season: currentlyPlayingMedia.season,
+            episode: currentlyPlayingMedia.episode,
+            currentTime,
+            duration,
+            posterUrl: currentlyPlayingMedia.posterUrl
+          })
+        });
+      } catch (e) {}
+    }
+
+    async function rescanServer() {
+      const icon = document.getElementById('refreshIcon');
+      icon.classList.add('animate-spin');
+      try {
+        await fetch('/api/library/rescan', { method: 'POST' });
+        await loadLibrary();
+      } finally {
+        setTimeout(() => icon.classList.remove('animate-spin'), 600);
+      }
+    }
+
+    // Settings Modal
+    async function openSettingsModal() {
+      try {
+        const statusRes = await fetch('/api/status');
+        const settingsRes = await fetch('/api/settings');
+        if (statusRes.ok) {
+          const status = await statusRes.json();
+          document.getElementById('settingsTvUrl').textContent = `http://${status.localIp}:${status.port}`;
+        }
+        if (settingsRes.ok) {
+          const settings = await settingsRes.json();
+          document.getElementById('extraPathsInput').value = (settings.extraMediaPaths || []).join(', ');
+        }
+      } catch (e) {}
+
+      const modal = document.getElementById('settingsModal');
+      const box = document.getElementById('settingsBox');
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+      box.classList.remove('scale-95');
+      box.classList.add('scale-100');
+    }
+
+    function closeSettingsModal() {
+      const modal = document.getElementById('settingsModal');
+      const box = document.getElementById('settingsBox');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+      box.classList.add('scale-95');
+      box.classList.remove('scale-100');
+    }
+
+    async function saveSettings() {
+      const extraMediaPaths = document.getElementById('extraPathsInput').value
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      try {
+        await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ extraMediaPaths })
+        });
+        closeSettingsModal();
+        await loadLibrary();
+      } catch (e) {
+        alert('Failed to save settings: ' + e.message);
+      }
+    }
+
+    // Remote navigation
+    window.addEventListener('keydown', (e) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        document.body.classList.add('tv-mode');
+      }
+
+      if (e.key === 'Escape' || e.key === 'BrowserBack' || e.keyCode === 461 || e.keyCode === 10009) {
+        e.preventDefault();
+        if (!document.getElementById('cardPopoutPreview').classList.contains('pointer-events-none')) {
+          hidePopoutPreview(true);
+          return;
+        }
+        if (!document.getElementById('trailerTheater').classList.contains('pointer-events-none')) {
+          closeTrailerTheater();
+          return;
+        }
+        if (!document.getElementById('playerOverlay').classList.contains('pointer-events-none')) {
+          closePlayer();
+          return;
+        }
+        if (!document.getElementById('detailModal').classList.contains('pointer-events-none')) {
+          closeDetails();
+          return;
+        }
+        if (!document.getElementById('settingsModal').classList.contains('pointer-events-none')) {
+          closeSettingsModal();
+          return;
+        }
+      }
+
+      const isPlayerActive = !document.getElementById('playerOverlay').classList.contains('pointer-events-none');
+      const isPopoutActive = !document.getElementById('cardPopoutPreview').classList.contains('pointer-events-none');
+
+      if (isPopoutActive && !isPlayerActive) {
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          navigatePopout(1);
+          return;
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          navigatePopout(-1);
+          return;
+        }
+      }
+
+      if (isPlayerActive) {
+        if (e.key === ' ') {
+          e.preventDefault();
+          togglePlayPause();
+        } else if (e.key === 'ArrowRight') {
+          skipSeconds(10);
+        } else if (e.key === 'ArrowLeft') {
+          skipSeconds(-10);
+        }
+      }
+    });
+
+    window.addEventListener('mousedown', () => {
+      document.body.classList.remove('tv-mode');
+    });
+
+    loadLibrary();
+  </script>
+</body>
+</html>
