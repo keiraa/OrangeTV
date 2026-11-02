@@ -5,7 +5,13 @@
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
-    "start:caffeinate": "caffeinate -d -s -i node server/server.js"
+    "start:caffeinate": "caffeinate -d -s -i node server/server.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "knip": "knip",
+    "test": "node --test tests/*.test.js"
   },
   "keywords": [
     "orange-tv",
@@ -22,5 +28,15 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "qrcode-terminal": "^0.12.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "eslint": "10.14.0",
+    "eslint-plugin-html": "8.2.1",
+    "globals": "16.5.0",
+    "knip": "6.44.1",
+    "prettier": "3.9.10"
   }
 }

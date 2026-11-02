@@ -1,0 +1,6 @@
+{
+  "$schema": "https://unpkg.com/knip/schema.json",
+  "entry": ["server/server.js", "tests/**/*.test.js"],
+  "project": ["server/**/*.js", "tests/**/*.js", "*.config.js"],
+  "ignoreBinaries": ["caffeinate"]
+}
