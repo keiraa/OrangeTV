@@ -13,7 +13,7 @@ function getLocalIpAddresses() {
       if (iface.family === 'IPv4' && !iface.internal) {
         addresses.push({
           interface: name,
-          address: iface.address
+          address: iface.address,
         });
       }
     }
@@ -30,9 +30,10 @@ function getPrimaryLocalIp() {
   if (addresses.length === 0) return '127.0.0.1';
 
   // Prefer Wi-Fi (en0) or Ethernet (en1) on macOS
-  const preferred = addresses.find(a => a.interface === 'en0') ||
-                    addresses.find(a => a.interface === 'en1') ||
-                    addresses[0];
+  const preferred =
+    addresses.find((a) => a.interface === 'en0') ||
+    addresses.find((a) => a.interface === 'en1') ||
+    addresses[0];
   return preferred.address;
 }
 
@@ -44,10 +45,10 @@ function srtToVtt(srtContent) {
   let vtt = 'WEBVTT\n\n';
   // Standardize line breaks
   const cleaned = srtContent.replace(/\r\n|\r/g, '\n').trim();
-  
+
   // Replace comma decimal separators with dots in timestamps: 00:01:20,500 --> 00:01:20.500
   const converted = cleaned.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
-  
+
   vtt += converted;
   return vtt;
 }
@@ -81,8 +82,7 @@ function printStartupBanner(port, localIp) {
 }
 
 module.exports = {
-  getLocalIpAddresses,
   getPrimaryLocalIp,
   srtToVtt,
-  printStartupBanner
+  printStartupBanner,
 };

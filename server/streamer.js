@@ -36,11 +36,9 @@ function fileError(res, err) {
     : ['EACCES', 'EPERM'].includes(err.code)
       ? 403
       : 500;
-  return res
-    .status(status)
-    .json({
-      error: status === 404 ? 'File not found' : 'Unable to read media',
-    });
+  return res.status(status).json({
+    error: status === 404 ? 'File not found' : 'Unable to read media',
+  });
 }
 
 /**
@@ -82,12 +80,10 @@ function streamVideoDirect(req, res, filePath) {
     }
     if (!valid) {
       fs.closeSync(fd);
-      res
-        .status(416)
-        .set({
-          'Content-Range': `bytes */${fileSize}`,
-          'Accept-Ranges': 'bytes',
-        });
+      res.status(416).set({
+        'Content-Range': `bytes */${fileSize}`,
+        'Accept-Ranges': 'bytes',
+      });
       return res.end();
     }
     res.status(206).set('Content-Range', `bytes ${start}-${end}/${fileSize}`);

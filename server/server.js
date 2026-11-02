@@ -1,351 +1,354 @@
 require('dotenv').config();
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const express = require('express');
 const cors = require('cors');
-
-const { scanLibrary } = require('./scanner');
-const { streamVideoDirect, streamVideoRemux, streamSubtitle, checkFfmpeg } = require('./streamer');
-const { getContinueWatching, getItemProgress, updateProgress, deleteProgress } = require('./progress');
+const { Catalog } = require('./catalog');
+const { readJson, writeJson } = require('./json-store');
+const {
+  streamVideoDirect,
+  streamVideoRemux,
+  streamSubtitle,
+  checkFfmpeg,
+} = require('./streamer');
+const {
+  getContinueWatching,
+  getItemProgress,
+  updateProgress,
+  deleteProgress,
+} = require('./progress');
 const { getPrimaryLocalIp, printStartupBanner } = require('./utils');
 
-const PORT = parseInt(process.env.PORT || '3000', 10);
-const DATA_DIR = path.join(__dirname, '../data');
-const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
-const METADATA_FILE = path.join(DATA_DIR, 'metadata.json');
+function validSettings(value) {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Array.isArray(value.extraMediaPaths) &&
+    value.extraMediaPaths.every((entry) => typeof entry === 'string')
+  );
+}
 
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+function mediaRoots(paths) {
+  return [
+    ...new Set(
+      paths.map((entry) => {
+        const trimmed = entry.trim();
+        return trimmed === '~'
+          ? os.homedir()
+          : path.resolve(
+              trimmed.startsWith('~/')
+                ? path.join(os.homedir(), trimmed.slice(2))
+                : trimmed
+            );
+      })
+    ),
+  ];
+}
 
-// Load settings
-function loadSettings() {
-  let settings = {
-    extraMediaPaths: process.env.EXTRA_MEDIA_PATHS
-      ? process.env.EXTRA_MEDIA_PATHS.split(',').map(s => s.trim())
-      : ['/Users/khasha/Desktop/Entertainment']
+function metadataChanges(body) {
+  const changes = {};
+  if (body.title !== undefined) {
+    if (typeof body.title !== 'string' || !body.title.trim()) return null;
+    changes.title = body.title.trim();
+  }
+  if (body.year !== undefined) {
+    const year =
+      body.year === null || body.year === '' ? null : Number(body.year);
+    if (year !== null && (!Number.isInteger(year) || year < 0 || year > 9999))
+      return null;
+    changes.year = year;
+  }
+  if (body.overview !== undefined) {
+    if (body.overview !== null && typeof body.overview !== 'string')
+      return null;
+    changes.overview = body.overview;
+  }
+  if (body.rating !== undefined) {
+    const rating =
+      body.rating === null || body.rating === '' ? null : Number(body.rating);
+    if (
+      rating !== null &&
+      (!Number.isFinite(rating) || rating < 0 || rating > 10)
+    )
+      return null;
+    changes.rating = rating;
+  }
+  if (body.genres !== undefined) {
+    if (
+      !Array.isArray(body.genres) ||
+      !body.genres.every((genre) => typeof genre === 'string')
+    )
+      return null;
+    changes.genres = body.genres;
+  }
+  for (const key of ['posterUrl', 'backdropUrl']) {
+    if (body[key] === undefined) continue;
+    if (body[key] !== null && typeof body[key] !== 'string') return null;
+    if (body[key]) {
+      try {
+        if (
+          !['http:', 'https:'].includes(
+            new URL(body[key], 'http://localhost').protocol
+          )
+        )
+          return null;
+      } catch {
+        return null;
+      }
+    }
+    changes[key] = body[key];
+  }
+  return changes;
+}
+
+function createApp({
+  dataDir = path.join(__dirname, '../data'),
+  mediaPaths,
+} = {}) {
+  const settingsFile = path.join(dataDir, 'settings.json');
+  const progressFile = path.join(dataDir, 'progress.json');
+  const defaults = {
+    extraMediaPaths:
+      mediaPaths ??
+      (process.env.EXTRA_MEDIA_PATHS || '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean),
   };
+  let settings = readJson(settingsFile, defaults, validSettings);
+  if (!validSettings(settings))
+    throw new Error('Invalid media path configuration');
+  const catalog = new Catalog(
+    path.join(dataDir, 'metadata.json'),
+    mediaRoots(settings.extraMediaPaths)
+  );
+  const app = express();
 
-  if (fs.existsSync(SETTINGS_FILE)) {
-    try {
-      const fileData = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
-      settings = { ...settings, ...fileData };
-    } catch (e) {
-      console.warn('[Server] Error reading settings.json:', e.message);
+  app.use((req, res, next) => {
+    const origin = req.get('origin');
+    if (origin && origin !== `${req.protocol}://${req.get('host')}`) {
+      return res
+        .status(403)
+        .json({ error: 'Cross-origin access is not allowed' });
     }
-  }
-  return settings;
-}
-
-function saveSettings(settings) {
-  try {
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
-  } catch (e) {
-    console.error('[Server] Error saving settings.json:', e.message);
-  }
-}
-
-// Persistent Metadata Store
-function loadStoredMetadata() {
-  if (fs.existsSync(METADATA_FILE)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(METADATA_FILE, 'utf8'));
-      if (data && (Array.isArray(data.movies) || Array.isArray(data.tvShows))) {
-        return data;
-      }
-    } catch (e) {
-      console.warn('[Server] Error reading metadata.json:', e.message);
-    }
-  }
-  return null;
-}
-
-function saveStoredMetadata(catalog) {
-  try {
-    fs.writeFileSync(METADATA_FILE, JSON.stringify(catalog, null, 2), 'utf8');
-    console.log('[Server] Saved library metadata to data/metadata.json');
-  } catch (e) {
-    console.error('[Server] Error saving metadata.json:', e.message);
-  }
-}
-
-let appSettings = loadSettings();
-
-// In-memory catalog
-let cachedCatalog = { movies: [], tvShows: [], movieSeries: [], scannedAt: null };
-// Lookup map for fast ID resolution: id -> item
-const mediaItemMap = new Map();
-
-function populateMediaItemMap(catalog) {
-  mediaItemMap.clear();
-  for (const movie of (catalog.movies || [])) {
-    mediaItemMap.set(movie.id, movie);
-  }
-  for (const show of (catalog.tvShows || [])) {
-    mediaItemMap.set(show.id, show);
-    if (show.seasons && Array.isArray(show.seasons)) {
-      for (const season of show.seasons) {
-        if (season.episodes && Array.isArray(season.episodes)) {
-          for (const ep of season.episodes) {
-            mediaItemMap.set(ep.id, ep);
-          }
-        }
-      }
-    }
-  }
-  for (const series of (catalog.movieSeries || [])) {
-    for (const m of (series.movies || [])) {
-      if (!mediaItemMap.has(m.id)) {
-        mediaItemMap.set(m.id, m);
-      }
-    }
-  }
-}
-
-function getMediaRoots() {
-  const roots = [];
-  const defaultEntertainment = '/Users/khasha/Desktop/Entertainment';
-  if (fs.existsSync(defaultEntertainment)) {
-    roots.push(defaultEntertainment);
-  }
-  if (appSettings.extraMediaPaths && Array.isArray(appSettings.extraMediaPaths)) {
-    for (const extra of appSettings.extraMediaPaths) {
-      if (extra && fs.existsSync(extra) && !roots.includes(extra)) {
-        roots.push(extra);
-      }
-    }
-  }
-  return roots;
-}
-
-async function refreshLibrary() {
-  console.log('[Server] Scanning media directories...');
-  const roots = getMediaRoots();
-  const rawCatalog = scanLibrary(roots);
-
-  // Load existing metadata to preserve artwork, series collections, overviews, and views
-  const existingMetadata = loadStoredMetadata();
-  const existingMap = new Map();
-  const existingTitleMap = new Map();
-  if (existingMetadata) {
-    (existingMetadata.movies || []).forEach(m => {
-      existingMap.set(m.id, m);
-      if (m.title) existingTitleMap.set(m.title.toLowerCase().trim(), m);
-    });
-    (existingMetadata.tvShows || []).forEach(s => {
-      existingMap.set(s.id, s);
-      if (s.title) existingTitleMap.set(s.title.toLowerCase().trim(), s);
-      (s.seasons || []).forEach(season => {
-        (season.episodes || []).forEach(ep => existingMap.set(ep.id, ep));
-      });
-    });
-    if (existingMetadata.movieSeries) {
-      rawCatalog.movieSeries = existingMetadata.movieSeries;
-    }
-  }
-
-  // Preserve stored metadata for movies
-  for (const movie of rawCatalog.movies) {
-    const existing = existingMap.get(movie.id) || existingTitleMap.get((movie.title || '').toLowerCase().trim());
-    if (existing) {
-      movie.title = existing.title || movie.title;
-      movie.year = existing.year || movie.year;
-      movie.genres = existing.genres || movie.genres || ['Movie'];
-      movie.overview = existing.overview || null;
-      movie.rating = existing.rating || null;
-      movie.views = existing.views || 0;
-      if (existing.series) movie.series = existing.series;
-      if (existing.seriesOrder) movie.seriesOrder = existing.seriesOrder;
-    } else {
-      movie.genres = movie.genres || ['Movie'];
-      movie.views = 0;
-    }
-
-    // Always ensure robust local endpoints for artwork
-    movie.posterUrl = movie.localPoster ? `/api/poster/${movie.id}` : (movie.posterUrl || `/api/poster/${movie.id}`);
-    movie.backdropUrl = movie.localBackdrop ? `/api/backdrop/${movie.id}` : (movie.backdropUrl || `/api/backdrop/${movie.id}`);
-  }
-
-  // Preserve stored metadata for TV shows & episodes
-  for (const show of rawCatalog.tvShows) {
-    const existing = existingMap.get(show.id) || existingTitleMap.get((show.title || '').toLowerCase().trim());
-    if (existing) {
-      show.title = existing.title || show.title;
-      show.genres = existing.genres || ['TV Series'];
-      show.overview = existing.overview || null;
-      show.rating = existing.rating || null;
-      show.views = existing.views || 0;
-    } else {
-      show.genres = show.genres || ['TV Series'];
-      show.views = 0;
-    }
-
-    // Always ensure robust local endpoints for artwork
-    show.posterUrl = show.localPoster ? `/api/poster/${show.id}` : (show.posterUrl || `/api/poster/${show.id}`);
-    show.backdropUrl = show.localBackdrop ? `/api/backdrop/${show.id}` : (show.backdropUrl || `/api/backdrop/${show.id}`);
-
-    for (const season of show.seasons) {
-      for (const ep of season.episodes) {
-        ep.posterUrl = show.posterUrl;
-        ep.backdropUrl = show.backdropUrl;
-      }
-    }
-  }
-
-  rawCatalog.scannedAt = Date.now();
-  cachedCatalog = rawCatalog;
-  populateMediaItemMap(cachedCatalog);
-
-  // Persist to disk
-  saveStoredMetadata(cachedCatalog);
-  console.log(`[Server] Indexed and saved ${rawCatalog.movies.length} movies and ${rawCatalog.tvShows.length} TV shows to data/metadata.json.`);
-}
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, '../public')));
-app.use('/images', express.static(path.join(__dirname, '../data/images')));
-
-/**
- * GET /api/library - Returns full catalog & continue watching row
- */
-app.get('/api/library', (req, res) => {
-  const continueWatching = getContinueWatching(20)
-    .filter(item => mediaItemMap.has(item.id))
-    .map(item => {
-      const media = mediaItemMap.get(item.id);
-      return {
-        ...item,
-        title: media?.title || item.title,
-        showTitle: media?.showTitle || item.showTitle,
-        posterUrl: media?.posterUrl || `/api/poster/${item.id}`,
-        backdropUrl: media?.backdropUrl || `/api/backdrop/${item.id}`,
-        views: media?.views || 0,
-        rating: media?.rating || null,
-        genres: media?.genres || [],
-        trailerPath: media?.trailerPath || null,
-        season: media?.season || item.season,
-        episode: media?.episode || item.episode
-      };
-    });
-
-  res.json({
-    movies: cachedCatalog.movies || [],
-    tvShows: cachedCatalog.tvShows || [],
-    movieSeries: cachedCatalog.movieSeries || [],
-    continueWatching,
-    scannedAt: cachedCatalog.scannedAt
+    next();
   });
-});
+  app.use(cors({ origin: true }));
+  app.use(express.json({ limit: '100kb' }));
+  app.use(express.static(path.join(__dirname, '../public')));
+  app.use(
+    '/images',
+    express.static(path.join(dataDir, 'images'), { dotfiles: 'deny' })
+  );
+  app.param('id', (req, res, next, id) => {
+    if (!/^[\w-]{1,128}$/.test(id))
+      return res.status(400).json({ error: 'Invalid media ID' });
+    next();
+  });
 
-/**
- * GET /api/backdrop/:id - Serve local backdrop image or fallback to poster
- */
-app.get('/api/backdrop/:id', (req, res) => {
-  const item = mediaItemMap.get(req.params.id);
-  if (item && item.localBackdrop && fs.existsSync(item.localBackdrop)) {
-    return res.sendFile(path.resolve(item.localBackdrop));
-  }
-  if (item && item.localPoster && fs.existsSync(item.localPoster)) {
-    return res.sendFile(path.resolve(item.localPoster));
-  }
-  // Check in data/images/backdrops
-  const fallback = path.join(DATA_DIR, 'images/backdrops', `${req.params.id}.jpg`);
-  if (fs.existsSync(fallback)) {
-    return res.sendFile(fallback);
-  }
-  return res.status(404).send('Backdrop not found');
-});
+  app.get('/api/library', (_req, res) => {
+    const continueWatching = getContinueWatching(
+      Number.MAX_SAFE_INTEGER,
+      progressFile
+    )
+      .filter((item) => catalog.items.has(item.id))
+      .slice(0, 20)
+      .map((item) => {
+        const media = catalog.items.get(item.id);
+        return { ...item, ...media };
+      });
+    res.json({ ...catalog.active, continueWatching });
+  });
 
-/**
- * POST /api/view/:id - Increment view count for a media item
- */
-app.post('/api/view/:id', (req, res) => {
-  const item = mediaItemMap.get(req.params.id);
-  if (!item) {
-    return res.status(404).json({ error: 'Media not found' });
-  }
+  app.get('/api/backdrop/:id', (req, res) => {
+    const item = catalog.items.get(req.params.id);
+    const file =
+      catalog.resolveFile(item?.localBackdrop) ||
+      catalog.resolveFile(item?.localPoster);
+    if (file) return res.sendFile(file);
+    const fallback = path.join(
+      dataDir,
+      'images/backdrops',
+      `${req.params.id}.jpg`
+    );
+    if (fs.existsSync(fallback)) return res.sendFile(path.resolve(fallback));
+    res.redirect(`/api/poster/${req.params.id}`);
+  });
 
-  item.views = (item.views || 0) + 1;
-  saveStoredMetadata(cachedCatalog);
-  res.json({ success: true, views: item.views });
-});
+  app.get('/api/poster/:id', (req, res) => {
+    const item = catalog.items.get(req.params.id);
+    const file = catalog.resolveFile(item?.localPoster);
+    if (file) return res.sendFile(file);
+    res
+      .type('svg')
+      .set('Cache-Control', 'public, max-age=86400')
+      .send(posterSvg(item));
+  });
 
-/**
- * POST /api/library/rescan - Trigger manual rescan
- */
-app.post('/api/library/rescan', async (req, res) => {
-  await refreshLibrary();
-  res.json({ success: true, count: mediaItemMap.size });
-});
+  app.post('/api/view/:id', (req, res) => {
+    const item = catalog.items.get(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Media not found' });
+    const updated = catalog.update(item.id, { views: (item.views || 0) + 1 });
+    res.json({ success: true, views: updated.views });
+  });
 
-/**
- * GET /api/stream/:id - Stream video (supports Range requests & remuxing)
- */
-app.get('/api/stream/:id', (req, res) => {
-  const item = mediaItemMap.get(req.params.id);
-  if (!item || !item.filePath) {
-    return res.status(404).json({ error: 'Media not found' });
-  }
+  app.post('/api/library/rescan', (_req, res) => {
+    catalog.refresh();
+    res.json({ success: true, count: catalog.items.size });
+  });
 
-  const shouldRemux = req.query.remux === 'true';
-  const startTime = parseFloat(req.query.t || '0');
-
-  if (shouldRemux) {
-    return streamVideoRemux(req, res, item.filePath, startTime);
-  }
-
-  return streamVideoDirect(req, res, item.filePath);
-});
-
-/**
- * GET /api/trailer/:id - Stream movie short trailer
- */
-app.get('/api/trailer/:id', (req, res) => {
-  const item = mediaItemMap.get(req.params.id);
-  if (!item || !item.trailerPath || !fs.existsSync(item.trailerPath)) {
-    return res.status(404).json({ error: 'Trailer not found' });
-  }
-  return streamVideoDirect(req, res, item.trailerPath);
-});
-
-/**
- * GET /api/subtitles/:id - Serve subtitle as WebVTT
- */
-app.get('/api/subtitles/:id', (req, res) => {
-  let subtitlePath = null;
-
-  for (const item of mediaItemMap.values()) {
-    if (item.subtitles && Array.isArray(item.subtitles)) {
-      const match = item.subtitles.find(s => s.id === req.params.id);
-      if (match) {
-        subtitlePath = match.path;
-        break;
-      }
+  app.get('/api/stream/:id', (req, res, next) => {
+    const file = catalog.resolveFile(
+      catalog.items.get(req.params.id)?.filePath
+    );
+    if (!file)
+      return res.status(404).json({ error: 'Media not found or unavailable' });
+    if (req.query.remux === 'true') {
+      return streamVideoRemux(req, res, file, Number(req.query.t ?? 0)).catch(
+        next
+      );
     }
-  }
+    return streamVideoDirect(req, res, file);
+  });
 
-  if (!subtitlePath) {
-    return res.status(404).send('Subtitle not found');
-  }
+  app.get('/api/trailer/:id', (req, res) => {
+    const file = catalog.resolveFile(
+      catalog.items.get(req.params.id)?.trailerPath
+    );
+    if (!file) return res.status(404).json({ error: 'Trailer not found' });
+    streamVideoDirect(req, res, file);
+  });
 
-  streamSubtitle(req, res, subtitlePath);
-});
+  app.get('/api/subtitles/:id', (req, res) => {
+    const file = catalog.resolveFile(catalog.subtitles.get(req.params.id));
+    if (!file) return res.status(404).json({ error: 'Subtitle not found' });
+    streamSubtitle(req, res, file);
+  });
 
-/**
- * GET /api/poster/:id - Serve local poster image or generate stylish SVG fallback
- */
-app.get('/api/poster/:id', (req, res) => {
-  const item = mediaItemMap.get(req.params.id);
-  if (item && item.localPoster && fs.existsSync(item.localPoster)) {
-    return res.sendFile(path.resolve(item.localPoster));
-  }
+  app.get('/api/progress', (req, res) => {
+    if (req.query.id !== undefined) {
+      if (
+        typeof req.query.id !== 'string' ||
+        !catalog.items.has(req.query.id)
+      ) {
+        return res.status(404).json({ error: 'Media not found' });
+      }
+      return res.json(getItemProgress(req.query.id, progressFile));
+    }
+    res.json(getContinueWatching(20, progressFile));
+  });
 
-  // Generate dynamic SVG poster with Orange TV aesthetic
-  const title = item ? (item.title || item.showTitle || 'Movie') : 'Local Media';
-  const year = item && item.year ? item.year : '';
-  const type = item && item.type === 'tv' ? 'TV SERIES' : 'MOVIE';
+  app.post('/api/progress', (req, res) => {
+    const item = catalog.items.get(req.body?.id);
+    if (!item) return res.status(404).json({ error: 'Media not found' });
+    const result = updateProgress(
+      {
+        ...item,
+        currentTime: req.body.currentTime,
+        duration: req.body.duration,
+      },
+      progressFile
+    );
+    if (!result) return res.status(400).json({ error: 'Invalid progress' });
+    res.json({ success: true, data: result });
+  });
 
+  app.delete('/api/progress/:id', (req, res) => {
+    res.json({ success: deleteProgress(req.params.id, progressFile) });
+  });
+
+  app.get('/api/settings', (_req, res) => {
+    res.json({
+      ...settings,
+      mediaRoots: mediaRoots(settings.extraMediaPaths).filter((root) =>
+        fs.existsSync(root)
+      ),
+    });
+  });
+
+  app.post('/api/settings', (req, res) => {
+    if (!validSettings(req.body))
+      return res
+        .status(400)
+        .json({ error: 'extraMediaPaths must be an array of strings' });
+    const nextSettings = {
+      ...settings,
+      extraMediaPaths: req.body.extraMediaPaths
+        .map((value) => value.trim())
+        .filter(Boolean),
+    };
+    writeJson(settingsFile, nextSettings, validSettings);
+    settings = nextSettings;
+    catalog.refresh(mediaRoots(settings.extraMediaPaths));
+    res.json({ success: true, settings });
+  });
+
+  app.get('/api/metadata', (_req, res) => res.json(catalog.stored));
+
+  app.put('/api/metadata/:id', (req, res) => {
+    if (!catalog.items.has(req.params.id))
+      return res.status(404).json({ error: 'Item not found' });
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      return res.status(400).json({ error: 'Invalid metadata' });
+    }
+    const changes = metadataChanges(req.body);
+    if (!changes) return res.status(400).json({ error: 'Invalid metadata' });
+    const item = catalog.update(req.params.id, changes);
+    res.json({ success: true, item });
+  });
+
+  app.get('/api/status', async (req, res, next) => {
+    try {
+      res.json({
+        status: 'online',
+        port: req.socket.localPort,
+        localIp: getPrimaryLocalIp(),
+        ffmpegAvailable: await checkFfmpeg(),
+        moviesCount: catalog.active.movies.length,
+        tvShowsCount: catalog.active.tvShows.length,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.use('/api', (_req, res) =>
+    res.status(404).json({ error: 'Endpoint not found' })
+  );
+  app.use((err, _req, res, _next) => {
+    console.error('[Server]', err.message);
+    if (res.headersSent) return res.destroy();
+    const status =
+      Number.isInteger(err.status) && err.status >= 400 && err.status < 600
+        ? err.status
+        : 500;
+    res.status(status).json({
+      error:
+        status < 500
+          ? err.message
+          : 'Operation failed; existing data has been preserved',
+    });
+  });
+  return app;
+}
+
+function escapeXml(value) {
+  const entities = {
+    '<': '&lt;',
+    '>': '&gt;',
+    '&': '&amp;',
+    "'": '&apos;',
+    '"': '&quot;',
+  };
+  return String(value).replace(/[<>&'"]/g, (character) => entities[character]);
+}
+
+function posterSvg(item) {
+  const title = item?.title || item?.showTitle || 'Local Media';
+  const year = item?.year || '';
+  const type = item?.type === 'tv' ? 'TV SERIES' : 'MOVIE';
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450">
       <defs>
@@ -376,128 +379,30 @@ app.get('/api/poster/:id', (req, res) => {
       <text x="150" y="280" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="18" font-weight="bold" fill="#FFFFFF" text-anchor="middle">
         ${escapeXml(title.length > 24 ? title.substring(0, 22) + '...' : title)}
       </text>
-      ${year ? `<text x="150" y="306" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#888888" text-anchor="middle">${year}</text>` : ''}
+      ${year ? `<text x="150" y="306" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#888888" text-anchor="middle">${escapeXml(String(year))}</text>` : ''}
     </svg>
   `.trim();
 
-  res.setHeader('Content-Type', 'image/svg+xml');
-  res.setHeader('Cache-Control', 'public, max-age=86400');
-  res.send(svg);
-});
-
-function escapeXml(unsafe) {
-  return unsafe.replace(/[<>&'"]/g, c => {
-    switch (c) {
-      case '<': return '&lt;';
-      case '>': return '&gt;';
-      case '&': return '&amp;';
-      case '\'': return '&apos;';
-      case '"': return '&quot;';
-    }
-  });
+  return svg;
 }
 
-/**
- * GET /api/progress - Get continue watching list
- */
-app.get('/api/progress', (req, res) => {
-  res.json(getContinueWatching());
-});
-
-/**
- * POST /api/progress - Save watch progress timestamp
- */
-app.post('/api/progress', (req, res) => {
-  const result = updateProgress(req.body);
-  res.json({ success: !!result, data: result });
-});
-
-/**
- * DELETE /api/progress/:id - Delete item progress
- */
-app.delete('/api/progress/:id', (req, res) => {
-  const success = deleteProgress(req.params.id);
-  res.json({ success });
-});
-
-/**
- * GET /api/settings - Fetch current server settings
- */
-app.get('/api/settings', (req, res) => {
-  res.json({
-    extraMediaPaths: appSettings.extraMediaPaths || [],
-    mediaRoots: getMediaRoots()
-  });
-});
-
-/**
- * POST /api/settings - Update settings (Extra Media Paths)
- */
-app.post('/api/settings', async (req, res) => {
-  if (Array.isArray(req.body.extraMediaPaths)) {
-    appSettings.extraMediaPaths = req.body.extraMediaPaths.map(s => s.trim()).filter(Boolean);
+if (require.main === module) {
+  try {
+    const port = Number(process.env.PORT ?? 3000);
+    if (!Number.isInteger(port) || port < 0 || port > 65535)
+      throw new Error('PORT must be an integer from 0 to 65535');
+    const app = createApp();
+    const server = app.listen(port, '0.0.0.0', () => {
+      printStartupBanner(server.address().port, getPrimaryLocalIp());
+    });
+    server.on('error', (err) => {
+      console.error('[Server] Unable to start:', err.message);
+      process.exitCode = 1;
+    });
+  } catch (err) {
+    console.error('[Server] Unable to start:', err.message);
+    process.exitCode = 1;
   }
-  saveSettings(appSettings);
-  await refreshLibrary();
-  res.json({ success: true, settings: appSettings });
-});
+}
 
-/**
- * GET /api/metadata - Get full stored metadata catalog
- */
-app.get('/api/metadata', (req, res) => {
-  const stored = loadStoredMetadata();
-  res.json(stored || cachedCatalog);
-});
-
-/**
- * PUT /api/metadata/:id - Update metadata for a specific media item
- */
-app.put('/api/metadata/:id', (req, res) => {
-  const item = mediaItemMap.get(req.params.id);
-  if (!item) {
-    return res.status(404).json({ error: 'Item not found' });
-  }
-
-  const { title, year, overview, rating, genres, posterUrl, backdropUrl } = req.body;
-  if (title !== undefined) item.title = title.trim();
-  if (year !== undefined) item.year = year ? parseInt(year, 10) : null;
-  if (overview !== undefined) item.overview = overview;
-  if (rating !== undefined) item.rating = rating;
-  if (Array.isArray(genres)) item.genres = genres;
-  if (posterUrl !== undefined) item.posterUrl = posterUrl;
-  if (backdropUrl !== undefined) item.backdropUrl = backdropUrl;
-
-  saveStoredMetadata(cachedCatalog);
-  res.json({ success: true, item });
-});
-
-/**
- * GET /api/status - Server health, network IPs, ffmpeg status
- */
-app.get('/api/status', async (req, res) => {
-  const hasFfmpeg = await checkFfmpeg();
-  res.json({
-    status: 'online',
-    port: PORT,
-    localIp: getPrimaryLocalIp(),
-    ffmpegAvailable: hasFfmpeg,
-    moviesCount: cachedCatalog.movies.length,
-    tvShowsCount: cachedCatalog.tvShows.length
-  });
-});
-
-// Start Server
-app.listen(PORT, '0.0.0.0', async () => {
-  const localIp = getPrimaryLocalIp();
-  printStartupBanner(PORT, localIp);
-
-  const stored = loadStoredMetadata();
-  if (stored && (stored.movies?.length > 0 || stored.tvShows?.length > 0)) {
-    cachedCatalog = stored;
-    populateMediaItemMap(cachedCatalog);
-    console.log(`[Server] Loaded ${cachedCatalog.movies.length} movies and ${cachedCatalog.tvShows.length} TV shows from data/metadata.json.`);
-  } else {
-    await refreshLibrary();
-  }
-});
+module.exports = { createApp };
