@@ -10,134 +10,175 @@ const MIME_MAP = {
   '.mkv': 'video/x-matroska',
   '.mov': 'video/quicktime',
   '.avi': 'video/x-msvideo',
-  '.vtt': 'text/vtt',
-  '.srt': 'text/vtt' // will be converted
 };
 
 // Check if ffmpeg binary exists
-let ffmpegAvailable = null;
+let ffmpegCheck = null;
 function checkFfmpeg() {
-  if (ffmpegAvailable !== null) return Promise.resolve(ffmpegAvailable);
-  return new Promise(resolve => {
+  if (ffmpegCheck) return ffmpegCheck;
+  ffmpegCheck = new Promise((resolve) => {
     const proc = spawn('ffmpeg', ['-version']);
-    proc.on('error', () => {
-      ffmpegAvailable = false;
-      resolve(false);
-    });
-    proc.on('close', code => {
-      ffmpegAvailable = (code === 0);
-      resolve(ffmpegAvailable);
-    });
+    proc.stdout.resume();
+    proc.stderr.resume();
+    proc.once('error', () => resolve(false));
+    proc.once('close', (code) => resolve(code === 0));
   });
+  return ffmpegCheck;
+}
+
+function fileError(res, err) {
+  if (res.destroyed) return;
+  if (res.headersSent) return res.destroy(err);
+  res.removeHeader('Content-Length');
+  res.removeHeader('Content-Range');
+  const status = ['ENOENT', 'ENOTDIR'].includes(err.code)
+    ? 404
+    : ['EACCES', 'EPERM'].includes(err.code)
+      ? 403
+      : 500;
+  return res
+    .status(status)
+    .json({
+      error: status === 404 ? 'File not found' : 'Unable to read media',
+    });
 }
 
 /**
  * Handle HTTP 206 Partial Content (Range requests) for fast zero-CPU direct streaming.
  */
 function streamVideoDirect(req, res, filePath) {
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'File not found' });
+  let fd;
+  let stat;
+  try {
+    fd = fs.openSync(filePath, 'r');
+    stat = fs.fstatSync(fd);
+    if (!stat.isFile())
+      throw Object.assign(new Error('Not a regular file'), { code: 'ENOENT' });
+  } catch (err) {
+    if (fd !== undefined) fs.closeSync(fd);
+    return fileError(res, err);
   }
-
-  const stat = fs.statSync(filePath);
   const fileSize = stat.size;
-  const ext = path.extname(filePath).toLowerCase();
-  const mimeType = MIME_MAP[ext] || 'video/mp4';
-
+  let start = 0;
+  let end = fileSize - 1;
   const range = req.headers.range;
-
   if (range) {
-    // Parse Range header: "bytes=start-end"
-    const parts = range.replace(/bytes=/, '').split('-');
-    const start = parseInt(parts[0], 10);
-    // Standard chunk size: 3MB max chunk if end is omitted to prevent buffer saturation
-    const defaultChunk = 3 * 1024 * 1024;
-    const end = parts[1] ? parseInt(parts[1], 10) : Math.min(start + defaultChunk, fileSize - 1);
-
-    if (start >= fileSize) {
-      res.status(416).setHeader('Content-Range', `bytes */${fileSize}`);
+    // Multiple ranges are deliberately unsupported; never silently return the wrong bytes.
+    const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+    let valid = !!match && !!(match[1] || match[2]) && fileSize > 0;
+    if (valid && !match[1]) {
+      const suffix = Number(match[2]);
+      valid = Number.isSafeInteger(suffix) && suffix > 0;
+      start = Math.max(0, fileSize - suffix);
+    } else if (valid) {
+      start = Number(match[1]);
+      const requestedEnd = match[2] ? Number(match[2]) : end;
+      valid =
+        Number.isSafeInteger(start) &&
+        Number.isSafeInteger(requestedEnd) &&
+        start < fileSize &&
+        requestedEnd >= start;
+      end = Math.min(requestedEnd, end);
+    }
+    if (!valid) {
+      fs.closeSync(fd);
+      res
+        .status(416)
+        .set({
+          'Content-Range': `bytes */${fileSize}`,
+          'Accept-Ranges': 'bytes',
+        });
       return res.end();
     }
-
-    const chunksize = (end - start) + 1;
-    const stream = fs.createReadStream(filePath, { start, end });
-
-    res.writeHead(206, {
-      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-      'Accept-Ranges': 'bytes',
-      'Content-Length': chunksize,
-      'Content-Type': mimeType,
-      'Cache-Control': 'no-cache, no-store, must-revalidate'
-    });
-
-    // Cleanup stream if client disconnects or seeks
-    req.on('close', () => {
-      stream.destroy();
-    });
-
-    stream.pipe(res);
-  } else {
-    // Full file stream
-    res.writeHead(200, {
-      'Content-Length': fileSize,
-      'Accept-Ranges': 'bytes',
-      'Content-Type': mimeType,
-      'Cache-Control': 'no-cache, no-store, must-revalidate'
-    });
-
-    const stream = fs.createReadStream(filePath);
-    req.on('close', () => {
-      stream.destroy();
-    });
-
-    stream.pipe(res);
+    res.status(206).set('Content-Range', `bytes ${start}-${end}/${fileSize}`);
   }
+  res.set({
+    'Content-Length': fileSize ? end - start + 1 : 0,
+    'Accept-Ranges': 'bytes',
+    'Content-Type':
+      MIME_MAP[path.extname(filePath).toLowerCase()] || 'video/mp4',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+  });
+  if (!fileSize || req.method === 'HEAD') {
+    fs.closeSync(fd);
+    return res.end();
+  }
+  const stream = fs.createReadStream(filePath, { fd, start, end });
+  res.once('close', () => stream.destroy());
+  stream.once('error', (err) => fileError(res, err));
+  stream.pipe(res);
 }
 
 /**
  * Stream video with on-the-fly FFmpeg container/audio remuxing (stream-copy, no heavy video encoding).
  */
 async function streamVideoRemux(req, res, filePath, startTimeSeconds = 0) {
+  if (!Number.isFinite(startTimeSeconds) || startTimeSeconds < 0) {
+    return res.status(400).json({ error: 'Invalid start time' });
+  }
+  try {
+    if (!fs.statSync(filePath).isFile())
+      throw Object.assign(new Error('Not a file'), { code: 'ENOENT' });
+    fs.accessSync(filePath, fs.constants.R_OK);
+  } catch (err) {
+    return fileError(res, err);
+  }
   const hasFfmpeg = await checkFfmpeg();
+  if (res.destroyed) return;
   if (!hasFfmpeg) {
-    console.warn('[Streamer] FFmpeg not found on system; falling back to direct play');
+    console.warn(
+      '[Streamer] FFmpeg not found on system; falling back to direct play'
+    );
     return streamVideoDirect(req, res, filePath);
   }
 
-  res.writeHead(200, {
+  res.set({
     'Content-Type': 'video/mp4',
     'Accept-Ranges': 'none',
-    'Cache-Control': 'no-cache'
+    'Cache-Control': 'no-cache',
   });
 
   const args = [
-    '-ss', String(startTimeSeconds),
-    '-i', filePath,
-    '-c:v', 'copy',                // Zero CPU video frame copy!
-    '-c:a', 'aac',                 // Fast AAC audio encoding for 100% TV compatibility
-    '-b:a', '192k',
-    '-f', 'mp4',
-    '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
-    'pipe:1'
+    '-nostdin',
+    '-v',
+    'error',
+    '-ss',
+    String(startTimeSeconds),
+    '-i',
+    filePath,
+    '-c:v',
+    'copy',
+    '-c:a',
+    'aac',
+    '-b:a',
+    '192k',
+    '-f',
+    'mp4',
+    '-movflags',
+    'frag_keyframe+empty_moov+default_base_moof',
+    'pipe:1',
   ];
 
   const ffmpegProc = spawn('ffmpeg', args);
 
-  req.on('close', () => {
-    ffmpegProc.kill('SIGKILL');
+  res.once('close', () => {
+    if (ffmpegProc.exitCode === null) ffmpegProc.kill();
   });
-
-  ffmpegProc.stdout.pipe(res);
-
-  ffmpegProc.stderr.on('data', () => {
-    // suppress verbose output
+  // Wait for process exit before ending the response, so failures cannot look successful.
+  ffmpegProc.stdout.pipe(res, { end: false });
+  ffmpegProc.stdout.once('error', (err) => fileError(res, err));
+  let diagnostic = '';
+  ffmpegProc.stderr.on('data', (chunk) => {
+    diagnostic = (diagnostic + chunk.toString()).slice(-2048);
   });
-
-  ffmpegProc.on('error', (err) => {
-    console.error('[Streamer] FFmpeg spawn error:', err.message);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'FFmpeg remux failed' });
+  ffmpegProc.once('error', (err) => fileError(res, err));
+  ffmpegProc.once('close', (code) => {
+    if (res.destroyed) return;
+    if (code !== 0) {
+      console.error('[Streamer] FFmpeg failed:', diagnostic.trim());
+      return fileError(res, new Error('FFmpeg remux failed'));
     }
+    res.end();
   });
 }
 
@@ -145,20 +186,20 @@ async function streamVideoRemux(req, res, filePath, startTimeSeconds = 0) {
  * Serve subtitle file in standard WebVTT format (converts SRT on-the-fly).
  */
 function streamSubtitle(req, res, subtitlePath) {
-  if (!fs.existsSync(subtitlePath)) {
-    return res.status(404).send('Subtitle file not found');
-  }
-
   const ext = path.extname(subtitlePath).toLowerCase();
 
   res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=86400');
 
   if (ext === '.vtt') {
-    fs.createReadStream(subtitlePath).pipe(res);
+    const stream = fs.createReadStream(subtitlePath);
+    stream.once('error', (err) => fileError(res, err));
+    res.once('close', () => stream.destroy());
+    stream.pipe(res);
   } else if (ext === '.srt') {
     fs.readFile(subtitlePath, 'utf8', (err, data) => {
-      if (err) return res.status(500).send('Error reading subtitle');
+      if (res.destroyed) return;
+      if (err) return fileError(res, err);
       const vtt = srtToVtt(data);
       res.send(vtt);
     });
@@ -171,5 +212,5 @@ module.exports = {
   streamVideoDirect,
   streamVideoRemux,
   streamSubtitle,
-  checkFfmpeg
+  checkFfmpeg,
 };
