@@ -1,216 +1,216 @@
-# 🍊 Orange TV — Personal Home Media Center
+# 🍊 OrangeTV
 
-An ultra-lightweight, zero-transcode local streaming server built for macOS and Smart TVs. Host your local movie and TV show collection and stream directly to Smart TV web browsers, tablets, phones, and laptops across your home network with zero unnecessary CPU load.
+A lightweight local media server for browsers and Smart TVs. OrangeTV scans your
+existing folders and streams files over your home network without copying them
+or transcoding video.
 
-Designed with an **Apple TV-inspired glassmorphism interface**, spatial D-pad remote navigation, instant resume tracking, and automated franchise collections.
+The interface includes movie and TV browsing, search, local artwork, trailer
+previews, keyboard/remote controls, subtitles, and saved playback positions.
+Browser codec support determines which files can play directly.
 
----
+## Requirements
 
-## ⚡ Highlights
+- Application: Node.js **18+** and npm.
+- Development tools: Node.js **24+**. This separate requirement does not raise the
+  application's minimum runtime. npm on Node 18 may warn about omitted development
+  packages during installation; the production server does not load those tools.
+- Optional: FFmpeg on `PATH` for the remux endpoint.
+- macOS, Linux, or Windows. The keep-awake script requires macOS `caffeinate`.
 
-- **Direct Play Streaming (0% CPU Transcoding)**: Streams MP4, MKV, WebM, and M4V video files directly using HTTP 206 Partial Content (Range requests) with instant forward/backward seeking. Your Mac stays completely cool and silent without loud fans spinning.
-- **Smart TV Remote (D-Pad) Spatial Navigation**: Engineered from the ground up for physical Smart TV remotes (LG webOS, Samsung Tizen, Android TV, Fire TV, Google TV) with full directional focus rings, Enter/OK selection, and Back navigation.
-- **Apple TV & Glassmorphic UI**:
-  - SF Pro typography, frosted glass panels, and signature orange glowing accents
-  - 3D interactive tilt & light-glare physics on media cards
-  - Dynamic cinematic hero banner with backdrop art, ratings, and synopsis
-  - Automatic franchise & collection clustering (Harry Potter, Marvel, Avatar, etc.)
-  - Deep-dive TV show drawer with season & episode picker
-- **Intelligent Playback Tracking**:
-  - Remembers exact playback timestamps per video
-  - One-click resume prompt (*"Resume from 42:15"* or *"Start from Beginning"*)
-  - Automatic *Continue Watching* carousel with live orange progress bars
-  - Finished items (>92%) automatically clear from the queue
-- **On-the-Fly Subtitles**: Automatically detects local `.srt` and `.vtt` subtitles, converting SRT to WebVTT on-the-fly for native browser display.
-- **Mac Sleep Prevention (`caffeinate`)**: Built-in Mac caffeinate mode prevents your Mac from going to sleep during playback without touching system power settings.
-- **Instant TV Pairing**: Automatically discovers your local LAN IP and renders an ASCII QR code directly in the terminal for 2-second pairing with phones or TVs.
-- **Flexible Media Folders (Zero File Copying)**: Map external hard drives, USB enclosures, or custom Mac folders (`~/Movies`, `/Volumes/DriveName`) via in-app Settings without copying multi-gigabyte files.
-- **Full Offline Support**: Works seamlessly without internet connectivity using smart filename parsing and dynamic SVG poster generation.
+Install Node.js from [nodejs.org](https://nodejs.org/). Check your shell with
+`node --version` and `npm --version` before installing dependencies.
 
----
+## Run
 
-## 🎯 Primary Use Cases
-
-### 1. Living Room Movie Night on Smart TV
-Stream your 1080p and 4K video files stored on your Mac directly to your living room TV (LG webOS, Samsung Tizen, Sony Google TV, Fire TV, Apple TV):
-1. Launch Orange TV on your Mac (`npm run start:caffeinate`).
-2. Open the built-in web browser on your TV.
-3. Type the LAN IP or scan the terminal QR code using your phone/TV camera.
-4. Sit back on your couch and navigate effortlessly using only your TV remote's arrow keys and OK button.
-
-### 2. Multi-Room Streaming (Phone, iPad, Laptop)
-Watch your movies anywhere in your home:
-- Open Safari or Chrome on your iPhone, iPad, Android device, or secondary laptop.
-- The UI dynamically scales with smooth touch controls, responsive video playback, and swipe-friendly navigation.
-
-### 3. External Hard Drive & NAS Vault
-Have a 2TB or 4TB external hard drive filled with movies and shows?
-- Keep your media on the external drive.
-- Add `/Volumes/MyHardDrive/Movies` to Orange TV's settings.
-- Orange TV indexes and catalogs everything instantly without moving or duplicating a single byte.
-
-### 4. Road Trips & Offline Cabin Playback
-Traveling with no Wi-Fi or internet connection?
-- Connect your Mac and devices to a portable Wi-Fi hotspot or travel router (no internet required).
-- Orange TV serves media offline with embedded poster fallbacks and smart filename parsing.
-
----
-
-## 🚀 Quick Start
-
-### 1. Requirements
-- macOS (Intel or Apple Silicon) or Linux/Windows
-- [Node.js](https://nodejs.org/) v18+ and `npm`
-
-### 2. Install Dependencies
-```bash
-# Clone the repository
-git clone https://github.com/<your-username>/orange-tv.git
-cd orange-tv
-
-# Install packages
-npm install
-```
-
-### 3. Start the Server
-
-#### Option A: Keep-Awake Mode (Recommended for macOS)
-Prevents your Mac from sleeping or dimming the screen during playback:
-```bash
-npm run start:caffeinate
-```
-
-#### Option B: Standard Mode
-```bash
+```sh
+npm ci --omit=dev
 npm start
 ```
 
-Upon launching, the terminal will display your local address, LAN address, and a scannable ASCII QR code:
+Open `http://localhost:3000`. The terminal prints a LAN address and QR code for
+other devices on the same network. On macOS, keep the machine awake with:
 
-```text
-======================================================
-              🍊 ORANGE TV MEDIA SERVER 🍊            
-======================================================
-
-  Local Host:      http://localhost:3000
-  Smart TV URL:    http://192.168.1.105:3000
-
-------------------------------------------------------
-  Open the Smart TV URL on your TV web browser!
-  Or scan this QR code with your phone/TV camera:
-
-  ▄▄▄▄▄▄▄ ▄ ▄▄ ▄▄▄▄▄▄▄
-  █ ▄▄▄ █ ▄ █▄ █ ▄▄▄ █
-  ...
-------------------------------------------------------
+```sh
+npm run start:caffeinate
 ```
 
----
+Open **Media Folders** in the navigation bar, add your media directories, and
+save. There is no machine-specific default media folder.
 
-## 📺 How to Watch on Your Smart TV
+## Configuration
 
-1. **Ensure Wi-Fi Connection**: Verify your Smart TV and your Mac are connected to the same home Wi-Fi network.
-2. **Open TV Browser**: Open the built-in web browser on your TV (e.g. *Web Browser* on LG webOS, *Internet* on Samsung Tizen, or *Silk Browser* on Fire TV).
-3. **Navigate to the URL**: Enter the `Smart TV URL` printed in your terminal (e.g., `http://192.168.1.105:3000`).
-4. **Bookmark for Instant Access**: Add the page to your TV browser bookmarks or speed-dial for 1-click access next time.
+Copy `.env.example` to `.env` if you want environment-based configuration:
 
-### TV Remote & Keyboard Controls
+```dotenv
+PORT=3000
+EXTRA_MEDIA_PATHS="/Volumes/Media/Movies,/Users/your-name/Movies"
+```
 
-| Action | Smart TV Remote | Keyboard | Mouse / Touch |
-|---|---|---|---|
-| **Navigate Grid & Carousels** | D-Pad Arrows (▲ ▼ ◄ ►) | `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight` | Hover / Click |
-| **Select / Open / Play** | `OK` / `Enter` | `Enter` | Click / Tap |
-| **Back / Close Modal** | `Back` / `Return` | `Escape` / `Backspace` | Close Button |
-| **Play / Pause** | `Play` / `Pause` / `OK` | `Space` / `Enter` | Tap Video |
-| **Seek Forward (+10s)** | Right Arrow (►) | `ArrowRight` | Scrub Bar |
-| **Seek Backward (-10s)** | Left Arrow (◄) | `ArrowLeft` | Scrub Bar |
-| **Volume Control** | TV Volume Buttons | `ArrowUp` / `ArrowDown` | Volume Slider |
-| **Toggle Fullscreen** | Fullscreen Button | `f` / `F` | Fullscreen Icon |
+`PORT` must be an integer from 0 to 65535; 0 requests an available port.
+`EXTRA_MEDIA_PATHS` is a comma-separated list. Saved paths in `data/settings.json`
+take precedence over the environment defaults. Paths support `~/` and relative
+paths; absolute paths are clearer for external drives. A comma inside a path
+cannot be represented by the environment variable; edit the settings JSON array
+while the server is stopped if necessary.
 
----
+Saving paths or clicking **Rescan Library** refreshes the catalog. Missing drives
+and removed paths are hidden from browsing, while their metadata remains on disk
+so reconnecting a drive does not erase edits. Changing a media file's path changes
+its ID; existing progress remains associated with its previous ID.
 
-## 📂 Media Organization
+## Media organization
 
-Orange TV automatically parses titles, release years, series collections, and TV show seasons/episodes from your directory structure and filenames.
-
-### Movies
-Organize movies in dedicated folders or flat files:
 ```text
 Movies/
-├── Interstellar (2014)/
-│   ├── Interstellar (2014).mp4
-│   ├── Interstellar (2014).en.srt    # (Optional subtitle)
-│   └── poster.jpg                    # (Optional custom poster)
-├── Inception (2010).mp4
-└── Dune Part Two (2024).mkv
-```
+├── Arrival (2016)/
+│   ├── Arrival (2016).mp4
+│   ├── Arrival (2016).en.srt
+│   ├── Arrival (2016).fr.vtt
+│   ├── poster.jpg
+│   ├── backdrop.jpg
+│   └── trailer.mp4
+└── Another Movie (2020).mkv
 
-### TV Shows
-Organize series with Season folders and standard SxxExx episode notation:
-```text
 TV Shows/
-└── Breaking Bad/
-    ├── poster.jpg                    # (Optional show poster)
-    ├── backdrop.jpg                  # (Optional show backdrop)
-    ├── Season 1/
-    │   ├── Breaking.Bad.S01E01.mp4
-    │   ├── Breaking.Bad.S01E01.en.srt
-    │   └── Breaking.Bad.S01E02.mp4
-    └── Season 2/
-        ├── Breaking.Bad.S02E01.mp4
-        └── Breaking.Bad.S02E02.mp4
+└── Example Show/
+    ├── poster.jpg
+    ├── backdrop.jpg
+    └── Season 1/
+        ├── Example.Show.S01E01.mp4
+        └── Example.Show.S01E01.en.srt
 ```
 
-### Movie Collections & Series
-Orange TV automatically identifies and clusters related films (e.g., *Avatar*, *Harry Potter*, *John Wick*, *Deadpool*, *Lord of the Rings*) into a dedicated **Series & Franchises** carousel on the home screen.
+- Videos: MP4, MKV, WebM, M4V, MOV, AVI.
+- Subtitles: SRT and VTT. SRT is converted to WebVTT when requested.
+- Artwork: JPG, JPEG, PNG, WebP. `images/poster.jpg` and `images/backdrop.jpg`
+  inside a movie/show folder are also supported. Missing artwork gets a local
+  SVG poster fallback.
+- Episodes: `S01E02`, `Season 1 Episode 2`, or `1x02` in filenames.
+- Name sidecars after their video to avoid assigning a subtitle to the wrong file.
+- Existing `movieSeries` collections in metadata are preserved and displayed.
+  The scanner does not automatically identify franchises.
 
-### Supported File Formats
-- **Video**: `.mp4`, `.mkv`, `.webm`, `.m4v`, `.mov`, `.avi`
-- **Subtitles**: `.srt` (converted on-the-fly), `.vtt`
-- **Artwork**: `.jpg`, `.jpeg`, `.png`, `.webp` (or auto-generated vector posters)
+Direct play depends on the browser's container and audio/video codec support.
+An extension alone does not guarantee playback, especially on Smart TVs.
 
----
+## Playback and controls
 
-## ⚙️ Configuration & Adding Folders
+Unfinished videos resume automatically once a saved position is over five
+seconds. Videos watched to at least 92% are considered complete. Trailers do not
+change movie progress or view counts. Select an episode in its show's details.
 
-### 1. In-App Settings (Easiest)
-Click the **Settings (gear icon)** in the top navigation bar of Orange TV:
-- Enter paths to external hard drives or local folders (e.g. `/Volumes/MediaDrive/Movies` or `/Users/username/Movies`).
-- Click **Add Path** and **Rescan Library**.
+| Action                         | Keyboard / remote                                           |
+| ------------------------------ | ----------------------------------------------------------- |
+| Move between browsing controls | Arrow keys; Tab / Shift+Tab                                 |
+| Activate focused control       | Enter / OK                                                  |
+| Close overlay                  | Escape, Browser Back, remote Back; Backspace outside inputs |
+| Play / pause                   | Space or media play/pause; Enter on the play button         |
+| Seek during playback           | Left / Right, 10 seconds                                    |
+| Volume during playback         | Up / Down                                                   |
+| Fullscreen during playback     | F or the fullscreen button                                  |
 
-### 2. Environment Variables (`.env`)
-Create an optional `.env` file in the root directory:
-```bash
-PORT=3000
-EXTRA_MEDIA_PATHS="/Volumes/Storage/Movies,/Users/username/Desktop/Entertainment"
+Use a TV's browser to open the printed LAN URL. Actual remote key mappings and
+codec support vary by device. Touch and mouse controls remain available.
+
+## Optional FFmpeg
+
+Install FFmpeg through your operating system's package manager (for example,
+`brew install ffmpeg` on macOS), then verify `ffmpeg -version` in the shell that
+starts OrangeTV. Restart OrangeTV after changing FFmpeg availability.
+
+`GET /api/stream/:id?remux=true&t=30` copies video into fragmented MP4 and encodes
+AAC audio, starting at 30 seconds. It does not transcode video. Remux responses
+have no byte-range seeking; change `t` to request another start position. When
+FFmpeg is absent, the endpoint falls back to direct playback. The browser player
+uses direct play by default.
+
+## Architecture and data
+
+The backend remains Express 4 with CommonJS; the frontend uses ordinary deferred
+scripts without a bundler. See [AGENTS.md](AGENTS.md) for the file map and
+[the refactoring record](docs/refactoring.md) for changes and validation.
+
+| Module                             | Responsibility                                                             |
+| ---------------------------------- | -------------------------------------------------------------------------- |
+| `server/server.js`                 | Startup, routes, request validation, settings, HTTP errors                 |
+| `server/catalog.js`                | Catalog merging, available-media indexes, metadata edits, root containment |
+| `server/scanner.js`                | Discovery, filename parsing, subtitles and artwork association             |
+| `server/streamer.js`               | File streams, ranges, subtitle responses, optional FFmpeg                  |
+| `server/progress.js`               | Resume records and completion rules                                        |
+| `server/json-store.js`             | Validated JSON reads and atomic file replacement                           |
+| `server/utils.js`                  | LAN address, QR banner, SRT conversion                                     |
+| `public/index.html` / `styles.css` | Markup / custom styles                                                     |
+| `public/js/`                       | App/settings, library, previews, player, navigation                        |
+
+Runtime files remain in `data/`, excluded from Git:
+
+- `settings.json`: media folders.
+- `metadata.json`: catalog, artwork references, collections, and edits.
+- `progress.json`: playback positions and completion status.
+- `images/`: optional local artwork cache.
+
+Writes use a temporary file and atomic rename. Malformed or unreadable existing
+JSON is preserved and reported as an error. Run only **one server process per
+data directory**; cross-process writes are not coordinated. A failed settings
+rescan is reported, but the already-saved settings remain available for a retry.
+
+## API
+
+| Endpoints                                                        | Purpose                                |
+| ---------------------------------------------------------------- | -------------------------------------- |
+| `GET /api/library`, `POST /api/library/rescan`                   | Browse / rescan available media        |
+| `GET /api/stream/:id`, `/api/trailer/:id`                        | Video / trailer playback               |
+| `GET /api/subtitles/:id`, `/api/poster/:id`, `/api/backdrop/:id` | Subtitles and artwork                  |
+| `GET /api/progress`, `GET /api/progress?id=:id`                  | Continue watching / one saved position |
+| `POST /api/progress`, `DELETE /api/progress/:id`                 | Save / remove progress                 |
+| `GET /api/settings`, `POST /api/settings`                        | Read / save media folders              |
+| `GET /api/metadata`, `PUT /api/metadata/:id`                     | Stored catalog / editable item fields  |
+| `POST /api/view/:id`, `GET /api/status`                          | View count / server status             |
+
+Media endpoints resolve indexed IDs and restrict file access to configured roots.
+Browser cross-origin access is rejected. This is a personal, unauthenticated LAN
+server: network clients can manage the library. Do not expose it to the internet.
+
+## Development
+
+Use Node 24+ to install and run development tools:
+
+```sh
+npm ci
+npm test
+npm run lint
+npm run lint:fix
+npm run format:check
+npm run format
+npm run knip
 ```
 
----
+Tests use Node's built-in runner and disposable temporary directories. They cover
+ranges, sparse large files, disconnects, scanner failures, metadata preservation,
+JSON corruption/write failures, API validation, frontend behavior, and controlled
+FFmpeg process success/failure. They never use your configured media folders.
 
-## 💾 Where Data is Stored
+ESLint checks backend CommonJS, browser scripts, and embedded HTML scripts with
+separate global environments. The browser files document their shared classic
+script names with `global` and `exported` comments. Knip includes browser entries
+and tests; review findings before deleting code. Prettier ignores runtime data,
+lockfiles, caches, and generated output. Formatting is kept separate from linting.
 
-Orange TV keeps runtime states separate from code in the [`data/`](file:///Users/khasha/Desktop/Projects/Local%20Netflix/data) directory (which is safely excluded from Git):
+## Troubleshooting
 
-- `data/metadata.json`: Parsed media catalog (movies, TV shows, seasons, series collections, and file paths).
-- `data/progress.json`: Playback resume timestamps and watch history.
-- `data/settings.json`: Configured extra folder paths.
-- `data/images/`: Cached posters and backdrops.
+- **`node` or `npm` not found:** install Node and reopen the terminal so its `bin`
+  directory is on `PATH`. Development tooling needs Node 24+.
+- **Empty library:** open Media Folders, verify the paths and read permissions,
+  reconnect external drives, then rescan. Startup reuses an existing catalog.
+- **TV cannot connect:** use the LAN URL, keep both devices on the same network,
+  and check the host firewall. Guest Wi-Fi may isolate devices.
+- **Video will not play:** try a browser-compatible MP4 codec combination. FFmpeg
+  remuxing can help container/audio compatibility, but cannot fix an unsupported
+  video codec without transcoding.
+- **Data error:** stop the server and back up the named JSON file before repairing
+  or restoring it. OrangeTV does not automatically reset damaged files.
+- **Offline styling:** local streaming works without internet, but Tailwind loads
+  from a CDN. First-load styling requires network access or a browser cache.
+- **Address already in use:** choose another `PORT` or stop the other process.
 
----
-
-## 🛠️ Tech Stack & Architecture
-
-- **Backend**: Node.js & Express.
-  - Zero heavy background transcoding or multi-thread CPU consumption.
-  - Direct byte-range streaming via HTTP 206 Partial Content.
-  - On-the-fly WebVTT subtitle stream converter.
-- **Frontend**: Vanilla ES6+ & Tailwind CSS.
-  - Apple Glassmorphic design system (`backdrop-filter: blur()`).
-  - Spatial Navigation Engine for TV D-Pad remote control.
-  - Hardware-accelerated CSS 3D transforms for card tilt and glare effects.
-
----
-
-## 📄 License
-
-MIT License. Free and open source for personal use.
+MIT licensed.
