@@ -267,8 +267,15 @@ function scanLibrary(rootDirs) {
       });
 
     // Find local poster if available in directory
+    const directoryImages = imagesByDirectory.get(parentDir) || [];
+    const unnamedPoster = !roots.includes(parentDir)
+      ? directoryImages.find(
+          (image) => !/backdrop|fanart/i.test(path.basename(image))
+        ) || directoryImages[0]
+      : null;
     const localPoster =
       findArtwork(parentDir, 'poster', baseNameNoExt, imagesByDirectory) ||
+      unnamedPoster ||
       findArtwork(
         path.dirname(parentDir),
         'poster',

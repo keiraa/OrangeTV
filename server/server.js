@@ -33,16 +33,18 @@ function validSettings(value) {
 function mediaRoots(paths) {
   return [
     ...new Set(
-      paths.map((entry) => {
-        const trimmed = entry.trim();
-        return trimmed === '~'
-          ? os.homedir()
-          : path.resolve(
-              trimmed.startsWith('~/')
-                ? path.join(os.homedir(), trimmed.slice(2))
-                : trimmed
-            );
-      })
+      paths
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .map((trimmed) => {
+          return trimmed === '~'
+            ? os.homedir()
+            : path.resolve(
+                trimmed.startsWith('~/')
+                  ? path.join(os.homedir(), trimmed.slice(2))
+                  : trimmed
+              );
+        })
     ),
   ];
 }
@@ -54,6 +56,8 @@ function metadataChanges(body) {
     changes.title = body.title.trim();
   }
   if (body.year !== undefined) {
+    if (body.year !== null && !['string', 'number'].includes(typeof body.year))
+      return null;
     const year =
       body.year === null || body.year === '' ? null : Number(body.year);
     if (year !== null && (!Number.isInteger(year) || year < 0 || year > 9999))
@@ -66,6 +70,11 @@ function metadataChanges(body) {
     changes.overview = body.overview;
   }
   if (body.rating !== undefined) {
+    if (
+      body.rating !== null &&
+      !['string', 'number'].includes(typeof body.rating)
+    )
+      return null;
     const rating =
       body.rating === null || body.rating === '' ? null : Number(body.rating);
     if (
@@ -326,9 +335,7 @@ function createApp({
         : 500;
     res.status(status).json({
       error:
-        status < 500
-          ? err.message
-          : 'Operation failed; existing data has been preserved',
+        status < 500 ? err.message : 'Operation failed; check the server log',
     });
   });
   return app;

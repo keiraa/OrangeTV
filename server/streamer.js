@@ -36,13 +36,16 @@ function fileError(res, err) {
     : ['EACCES', 'EPERM'].includes(err.code)
       ? 403
       : 500;
-  return res.status(status).json({
-    error: status === 404 ? 'File not found' : 'Unable to read media',
-  });
+  return res
+    .status(status)
+    .type('json')
+    .json({
+      error: status === 404 ? 'File not found' : 'Unable to read media',
+    });
 }
 
 /**
- * Handle HTTP 206 Partial Content (Range requests) for fast zero-CPU direct streaming.
+ * Serve byte ranges without transcoding or buffering the whole video.
  */
 function streamVideoDirect(req, res, filePath) {
   let fd;
@@ -133,6 +136,7 @@ async function streamVideoRemux(req, res, filePath, startTimeSeconds = 0) {
     'Accept-Ranges': 'none',
     'Cache-Control': 'no-cache',
   });
+  if (req.method === 'HEAD') return res.end();
 
   const args = [
     '-nostdin',
@@ -167,9 +171,15 @@ async function streamVideoRemux(req, res, filePath, startTimeSeconds = 0) {
   ffmpegProc.stderr.on('data', (chunk) => {
     diagnostic = (diagnostic + chunk.toString()).slice(-2048);
   });
-  ffmpegProc.once('error', (err) => fileError(res, err));
+  let failed = false;
+  ffmpegProc.once('error', (err) => {
+    failed = true;
+    if (err.code === 'ENOENT' && !res.headersSent)
+      return streamVideoDirect(req, res, filePath);
+    fileError(res, err);
+  });
   ffmpegProc.once('close', (code) => {
-    if (res.destroyed) return;
+    if (failed || res.destroyed) return;
     if (code !== 0) {
       console.error('[Streamer] FFmpeg failed:', diagnostic.trim());
       return fileError(res, new Error('FFmpeg remux failed'));

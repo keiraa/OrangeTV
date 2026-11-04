@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
+const { PassThrough } = require('node:stream');
 const express = require('express');
 const { streamVideoDirect, streamSubtitle } = require('../server/streamer');
 
@@ -121,4 +122,29 @@ test('seeks near the end of a sparse multi-gigabyte file and survives disconnect
   });
   assert.equal(alive.status, 206);
   await alive.arrayBuffer();
+});
+
+test('handles unreadable files and read-stream errors with JSON responses', async (t) => {
+  const { url, file } = await fixture(t);
+  if (process.platform !== 'win32') {
+    fs.chmodSync(file, 0);
+    try {
+      const response = await fetch(`${url}/video`);
+      assert.equal(response.status, 403);
+      assert.match(response.headers.get('content-type'), /^application\/json/);
+      await response.json();
+    } finally {
+      fs.chmodSync(file, 0o600);
+    }
+  }
+  t.mock.method(fs, 'createReadStream', (_file, { fd }) => {
+    const stream = new PassThrough();
+    stream.once('close', () => fs.closeSync(fd));
+    queueMicrotask(() => stream.destroy(new Error('Disk read failed')));
+    return stream;
+  });
+  const response = await fetch(`${url}/video`);
+  assert.equal(response.status, 500);
+  assert.match(response.headers.get('content-type'), /^application\/json/);
+  assert.equal((await response.json()).error, 'Unable to read media');
 });

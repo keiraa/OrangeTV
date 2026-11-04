@@ -88,6 +88,14 @@ test('matches subtitles to their video and picks explicit artwork', (t) => {
   );
   assert.equal(movie.localPoster, path.join(folder, 'poster.jpg'));
   assert.equal(movie.localBackdrop, path.join(folder, 'backdrop.jpg'));
+  fs.renameSync(
+    path.join(folder, 'poster.jpg'),
+    path.join(folder, 'custom.jpg')
+  );
+  const custom = scanLibrary([root]).movies.find(
+    (item) => item.filename === 'Movie.mp4'
+  );
+  assert.equal(custom.localPoster, path.join(folder, 'custom.jpg'));
 });
 
 test('sorts episodes and skips directory symlinks', (t) => {
@@ -100,4 +108,26 @@ test('sorts episodes and skips directory symlinks', (t) => {
     show.seasons.map((season) => season.seasonNumber),
     [1, 2]
   );
+});
+
+test('skips unreadable directories and files while scanning readable media', (t) => {
+  if (process.platform === 'win32') return t.skip('POSIX permission fixture');
+  const root = fixture(t);
+  const blocked = path.join(root, 'blocked');
+  const unreadable = path.join(root, 'Unreadable.mp4');
+  fs.mkdirSync(blocked);
+  fs.writeFileSync(path.join(blocked, 'Hidden.mp4'), 'video');
+  fs.writeFileSync(unreadable, 'video');
+  fs.writeFileSync(path.join(root, 'Readable.mp4'), 'video');
+  fs.chmodSync(blocked, 0);
+  fs.chmodSync(unreadable, 0);
+  try {
+    assert.deepEqual(
+      scanLibrary([root]).movies.map((movie) => movie.title),
+      ['Readable']
+    );
+  } finally {
+    fs.chmodSync(blocked, 0o700);
+    fs.chmodSync(unreadable, 0o600);
+  }
 });

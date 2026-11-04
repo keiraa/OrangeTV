@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { readJson, writeJson } = require('../server/json-store');
 const {
   getContinueWatching,
@@ -82,4 +83,37 @@ test('serializes simultaneous updates in one process without losing other record
   );
   assert.equal(getContinueWatching(100, file).length, 25);
   assert.deepEqual(fs.readdirSync(path.dirname(file)), ['progress.json']);
+});
+
+test('failed disk writes propagate without changing the existing JSON', (t) => {
+  if (process.platform === 'win32') return t.skip('POSIX permission fixture');
+  const file = fixture(t);
+  updateProgress({ id: 'a', currentTime: 10, duration: 100 }, file);
+  const before = fs.readFileSync(file, 'utf8');
+  fs.chmodSync(path.dirname(file), 0o500);
+  try {
+    assert.throws(
+      () => updateProgress({ id: 'b', currentTime: 20, duration: 100 }, file),
+      /EACCES|EPERM/
+    );
+    assert.equal(fs.readFileSync(file, 'utf8'), before);
+  } finally {
+    fs.chmodSync(path.dirname(file), 0o700);
+  }
+});
+
+test('an interrupted atomic replacement leaves the original JSON valid', (t) => {
+  const file = fixture(t);
+  updateProgress({ id: 'a', currentTime: 10, duration: 100 }, file);
+  const before = fs.readFileSync(file, 'utf8');
+  const code = `
+    const fs = require('fs');
+    const { writeJson } = require(${JSON.stringify(require.resolve('../server/json-store'))});
+    fs.renameSync = () => process.kill(process.pid, 'SIGKILL');
+    writeJson(${JSON.stringify(file)}, {}, () => true);
+  `;
+  const result = spawnSync(process.execPath, ['-e', code]);
+  assert.equal(result.signal, 'SIGKILL');
+  assert.equal(fs.readFileSync(file, 'utf8'), before);
+  assert.equal(getItemProgress('a', file).currentTime, 10);
 });

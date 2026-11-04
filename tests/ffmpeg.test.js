@@ -169,3 +169,28 @@ test('kills the remux process when the client disconnects', async (t) => {
   await stopped;
   assert.equal(remux.killed, true);
 });
+
+test('terminates a partially written remux response when FFmpeg fails', async (t) => {
+  const streamer = loadStreamer((_command, args) => {
+    const child = processStub();
+    setImmediate(() => {
+      if (args.includes('-version')) {
+        child.exitCode = 0;
+        child.emit('close', 0);
+        return;
+      }
+      child.stdout.write('partial video');
+      setImmediate(() => {
+        child.stderr.end('Remux interrupted');
+        child.exitCode = 1;
+        child.emit('close', 1);
+      });
+    });
+    return child;
+  });
+  const url = await fixture(t, streamer);
+  await assert.rejects(async () => {
+    const response = await fetch(url);
+    await response.text();
+  });
+});
