@@ -7,7 +7,10 @@ module.exports = [
     files: ['**/*.js', 'public/**/*.html'],
     rules: {
       'no-undef': 'error',
-      'no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
+      'no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', caughtErrors: 'none' },
+      ],
       'no-unreachable': 'error',
       'no-constant-condition': 'error',
       'no-dupe-args': 'error',
@@ -20,7 +23,7 @@ module.exports = [
     },
   },
   {
-    files: ['**/*.js'],
+    files: ['server/**/*.js', 'tests/**/*.js', '*.config.js'],
     languageOptions: { sourceType: 'commonjs', globals: globals.node },
   },
   {
